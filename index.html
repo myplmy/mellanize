@@ -8,13 +8,10 @@
   <body>
     <main>
       <h1>mellanize</h1>
-      <p class="sub">이미지 → Claude Mellan 스타일 단일 나선 판화 (walking skeleton)</p>
+      <p class="sub">이미지 → Claude Mellan 스타일 단일 나선 판화</p>
 
       <div class="controls">
-        <label class="file">
-          이미지 선택
-          <input type="file" id="file" accept="image/*" />
-        </label>
+        <label class="file">이미지 선택 <input type="file" id="file" accept="image/*" /></label>
         <label>모드
           <select id="mode">
             <option value="phasefield" selected>phasefield</option>
@@ -27,11 +24,18 @@
             <option value="tone_only">tone_only (톤만)</option>
           </select>
         </label>
-        <label>pitch <input type="number" id="pitch" value="8" min="2" max="40" step="1" /></label>
-        <label>T<sub>max</sub> <input type="number" id="tmax" value="6" min="1" max="30" step="0.5" /></label>
-        <label>λ <input type="number" id="lambda" value="4" min="0" max="10" step="0.1" /></label>
-        <span id="status" class="status">이미지를 선택하세요.</span>
+        <label><input type="checkbox" id="autoregen" checked /> 자동 재생성</label>
+        <button id="render" type="button">Render</button>
       </div>
+
+      <div id="basic" class="params"></div>
+      <details class="adv">
+        <summary>고급 설정 (엔진 수치)</summary>
+        <div id="advanced" class="params"></div>
+      </details>
+
+      <p class="hint">캔버스를 클릭하면 나선 중심을 지정합니다.</p>
+      <span id="status" class="status">이미지를 선택하세요.</span>
 
       <canvas id="canvas"></canvas>
     </main>
