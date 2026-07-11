@@ -130,7 +130,9 @@ $$n(x,y) = \frac{\rho}{p} - \frac{\theta}{2\pi}$$
 - **`tone_only` (2안)**: 톤 구동 반경 이동.
   $$n'(x,y) = n(x,y) + \frac{\lambda}{p}\,\alpha(x,y)\,\big(I(x,y) - \bar{I}\big)$$
   $\alpha$ 높고 밝기 변화가 있는 곳에서 턴 경계를 국소 이동·부풀림 → Mellan식 톤 구동. 단, 선이 에지를 **따라 굴곡하지는 않음**(`line_orientation=along` 미실현).
-- **`anisotropic` (1안, along 실현)**: 위 톤 워프에 더해, $n'$을 **구조 텐서로 이방성 확산/워핑**하여 등위선 법선 $\nabla n'$을 $\mathbf{v}_1$에 정렬 → 등위선(=선)이 $\mathbf{v}_2$(에지)를 **따라 굴곡**. 조향 항: 확산 텐서를 $D_{\text{tensor}} = \mathbf{v}_1\mathbf{v}_1^\top + \eta\,\mathbf{v}_2\mathbf{v}_2^\top$ ($\eta<1$)로 두어 $\mathbf{v}_2$ 방향 확산을 억제, $\nabla n'$이 $\mathbf{v}_1$로 서도록 유도. phasefield의 비교차·커버리지·자동간격 성질을 유지한 채 `along` 실현.
+- **`anisotropic` (1안, along 실현)**: 위 톤 워프에 더해, $n'$을 **에지 방향 $\mathbf{v}_2$ 를 따라 방향성 평활**한다. $n'$이 $\mathbf{v}_2$ 를 따라 상수에 가까워지면 등위선(=선)이 $\mathbf{v}_2$ 를 **따라 굴곡**하고 법선 $\nabla n'$이 $\mathbf{v}_1$ 로 정렬된다. 즉 확산 텐서는 **$\mathbf{v}_2$ 방향을 강하게** 두어야 한다: $D_{\text{tensor}} = \eta\,\mathbf{v}_1\mathbf{v}_1^\top + \mathbf{v}_2\mathbf{v}_2^\top$ ($\eta<1$). 커버리지 보존을 위해 평활 가중을 coherence $A=(\lambda_1-\lambda_2)/(\lambda_1+\lambda_2)$ 에 비례시켜 **에지 근처에서만 굴곡**하고 평탄부는 나선을 유지한다. phasefield 의 비교차·커버리지·자동간격을 유지한 채 `along` 실현.
+
+  > **정정 (Slice 3 구현 시 발견)**: 본 문서 초안은 $D = \mathbf{v}_1\mathbf{v}_1^\top + \eta\,\mathbf{v}_2\mathbf{v}_2^\top$($\mathbf{v}_1$ 강)로 적었으나, 그러면 $n'$이 $\mathbf{v}_1$ 을 따라 평활되어 등위선이 $\mathbf{v}_1$(에지 가로지름)로 서므로 목표와 반대다. $\mathbf{v}_2$ 강이 옳다.
 
 **렌더**: $n'$의 정수 레벨을 marching-squares로 추출 → 각 등위선이 한 턴, 이어 붙이면 단일 연속 곡선.
 

@@ -14,7 +14,7 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 (Slice 2/10) | Slice 1·2 완료. 다음: #3 이방성 워프(along, 기본 조합 완성) |
+| 3 | v2 알고리즘 구현 | 진행 중 (Slice 3/10) | Slice 1~3 완료 → **기본 조합 phasefield+grad+along 완성**. 다음: #4 파라미터 UI+중심 클릭 |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
 | 6 | CI Node 20 deprecation | 해결 | 액션 최신 메이저 pin(checkout v7·setup-node v6·upload-pages-artifact v5·deploy-pages v5, node-version 22) → node24 타깃. github changelog 2025-09-19 권장 해법(임시 env 회피 아님) |
@@ -22,6 +22,14 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-12 — Slice 3 (이방성 워프 = along) + v2 문서 공식 정정
+
+- **Slice 3(#3) 구현**: `warp_mode=anisotropic`. 구조텐서 고유분해(`orientation`: v₂·coherence) → `alongSmooth`(위상장을 v₂ 따라 방향성 평활, coherence 가중, reach 파라미터, seam guard) → 기본 조합 phasefield+grad+along 완성. UI에 warp_mode 스위치.
+- **v2 문서 §5.A 공식 오류 정정**: 확산 텐서를 `v₁ 강`으로 적었으나 목표(∇n'∥v₁, 선∥v₂)엔 `v₂ 강`이 옳음. 문서·코드 교정.
+- **검증**: build(tsc, 15 modules). 대각 그래디언트(coherence 전역≈1)에서 anisotropic이 선을 반대각(v₂)으로 전역 재정렬 확인 — 지배 grad각 tone_only −11.4°(무방향 spiral) → anisotropic **+47.6°**(선 −45°). 커버리지 코너 잉크 유지.
+- **한계(정직)**: 얇은 고립 에지(수직 여유 부족)에선 효과 약함(국소 jog). 실사진의 넓은 구조에선 유효. 강도 튜닝은 #10(미학 캘리브레이션). reach/iters/strength 기본값은 커버리지-안전 범위로 잡음.
+- **미비**: λ 상한(monotonicity gap cap) 여전히 미구현(#8에서).
 
 ### 2026-07-12 — Slice 2 (phasefield 톤 워프) + CI node24
 
