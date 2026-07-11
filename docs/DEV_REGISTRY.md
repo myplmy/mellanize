@@ -14,7 +14,7 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 (Slice 5/10) | Slice 1~5 완료. 다음: #6 alpha_source 버전(meanH·mixed). #14는 #9 앞에 |
+| 3 | v2 알고리즘 구현 | 진행 중 (Slice 6/10) | Slice 1~6 완료. 승인 순서상 **다음은 #14**(단일 연속선), 그 후 #7·#8·#9·#10 |
 | 7 | phasefield 단일연속선(#14) | 대기 (bug, ready-for-agent) | θ=0 seam 갭·역방향 + 레벨셋 아크가 동심 등고선(stitch 미구현) + 중간 끊김. 계획 외 발견. integrate(#7)는 태생적 단일선이라 무관 |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
@@ -23,6 +23,12 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-12 — Slice 6 (alpha_source 버전 meanH·mixed)
+
+- **Slice 6(#6) 구현**: `alpha_source` = grad/meanH/mixed. `derivatives.secondDerivatives`(σ 블러 후 유한차분), `curvature.ts`(meanCurvatureMag |H|, gaussCurvatureMag |K|; f=c·I), `alpha.computeAlpha`(소스별 스칼라→정규화→Perona-Malik). c(밝기→높이 스케일) 고급 파라미터. UI α 스위치.
+- **검증(구조)**: build(tsc). 3소스 크래시 없이 렌더, 상호 diff grad↔meanH 4.8%·grad↔mixed 1.7%·meanH↔mixed 4.7% → 소스별 구별됨. 시각 우열은 사용자.
+- **follow-up**: mixed 가중치(0.5/0.3/0.2) 고정 — 필요 시 노출.
 
 ### 2026-07-12 — #14 영향도 검토 + Slice 5 (전처리 옵션)
 

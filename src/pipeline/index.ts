@@ -3,7 +3,7 @@ import { sampleBilinear } from './grayscale';
 import { archimedes } from './spiral';
 import { sobel } from './derivatives';
 import { structureTensor, orientation } from './structureTensor';
-import { gradientAlpha } from './alpha';
+import { computeAlpha } from './alpha';
 import { warpedTurnField } from './phasefield';
 import { alongSmooth, fieldRange } from './anisoWarp';
 import { isoSegments } from './marchingSquares';
@@ -64,7 +64,7 @@ function phasefield(gray: GrayImage, cfg: PipelineConfig, center: Pt): StrokeSeg
   const { width: w, height: h } = gray;
   const grad = sobel(gray);
   const tensor = structureTensor(grad, w, h, cfg.rho);
-  const alpha = gradientAlpha(grad, w, h, cfg.diffIters, cfg.diffKappa);
+  const alpha = computeAlpha(gray, grad, cfg);
 
   const pf = warpedTurnField(gray, alpha, center, cfg.pitch, cfg.lambda);
   let field = pf.field;
