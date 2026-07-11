@@ -15,7 +15,7 @@
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
 | 3 | v2 알고리즘 구현 | 진행 중 (Slice 6/10) | Slice 1~6 완료. 승인 순서상 **다음은 #14**(단일 연속선), 그 후 #7·#8·#9·#10 |
-| 7 | phasefield 단일연속선(#14) | 대기 (bug, ready-for-agent) | θ=0 seam 갭·역방향 + 레벨셋 아크가 동심 등고선(stitch 미구현) + 중간 끊김. 계획 외 발견. integrate(#7)는 태생적 단일선이라 무관 |
+| 7 | phasefield 단일연속선(#14) | 부분 완료 | 세그먼트→정렬 폴리라인 chain+bridge: ~25k조각→~320 폴리라인(78× 연속성↑), seam guard+bridge, 커버리지 유지. **완전 단일곡선은 아님**(워프 등위선 위상). 진짜 단일 나선은 #7 integrate |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
 | 6 | CI Node 20 deprecation | 해결 | 액션 최신 메이저 pin(checkout v7·setup-node v6·upload-pages-artifact v5·deploy-pages v5, node-version 22) → node24 타깃. github changelog 2025-09-19 권장 해법(임시 env 회피 아님) |
@@ -23,6 +23,12 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-12 — #14 phasefield 연속성 개선 + 신규 이슈 5건
+
+- **#14 구현**: 렌더 프리미티브 세그먼트→**정렬 폴리라인**. `marchingSquares.isoPolylines`: 레벨별 marching → 끝점 인접 chain → θ 정렬 → 레벨 오름차순 근접 bridge. `render.renderPolylines`, `buildPolylines`(StrokePoint[][]). types StrokeSeg→StrokePoint/Polyline.
+- **검증(구조)**: build tsc(17 modules). phasefield 무순서 ~25k → **정렬 폴리라인 322(aniso)/317(tone)**(78× 연속성↑, 평균 ~81점/폴리라인), 커버리지 유지, skeleton 1폴리라인. **한계: 완전 단일곡선 아님**(등위선 위상 분절) → 진짜 단일 나선은 #7 integrate. 시각 판단은 사용자.
+- **신규 이슈 5건**(사용자 요청): #18 툴팁·그룹화, #19 주파수 필터(triage), #20 IQA, #21 before-after(세로/가로 분할 옵션), #22 4분할, #23 원본해상도 변환·다운로드(#9 밀접). 별도 트랙 작업순서 마련. 모두 #14와 독립(다른 계층)이라 미포함.
 
 ### 2026-07-12 — Slice 6 (alpha_source 버전 meanH·mixed)
 
