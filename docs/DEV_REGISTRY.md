@@ -14,7 +14,7 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 (Slice 4/10) | Slice 1~4 완료. 다음: #5 전처리 옵션 |
+| 3 | v2 알고리즘 구현 | 진행 중 (Slice 5/10) | Slice 1~5 완료. 다음: #6 alpha_source 버전(meanH·mixed). #14는 #9 앞에 |
 | 7 | phasefield 단일연속선(#14) | 대기 (bug, ready-for-agent) | θ=0 seam 갭·역방향 + 레벨셋 아크가 동심 등고선(stitch 미구현) + 중간 끊김. 계획 외 발견. integrate(#7)는 태생적 단일선이라 무관 |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
@@ -23,6 +23,12 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-12 — #14 영향도 검토 + Slice 5 (전처리 옵션)
+
+- **#14 cross-slice 영향도 검토**(사용자 요청): #14는 **phasefield 전용**(integrate/warp는 태생적 단일선). #5·#6 완전 독립(재작업 0), #8 상보적, **#9(SVG)는 렌더 프리미티브 세그먼트→폴리라인 파급 → #14를 #9 앞에**, #10은 #14 이후. 결론: 계획대로 진행하되 #14만 #9·#10 앞으로. 사용자 승인.
+- **Slice 5(#5) 구현**: `preprocess` = luma_clahe(기본)/luma_only/user_adjust. `preprocess.ts`(CLAHE 타일 clip+bilinear, 대비·감마). raw luma vs 전처리본 분리 + dirtyPreprocess 지연 재계산(비-preproc 파라미터 변경 시 CLAHE 재계산 안 함). UI preprocess 스위치 + contrast/gamma 고급 슬라이더.
+- **검증(구조/수치)**: build(tsc). 3모드 크래시 없이 렌더, CLAHE vs luma_only diff 8.4%, user_adjust(contrast 2.2) 11.5% → 전처리가 파이프라인 입력을 실제로 바꿈. 시각 우열은 사용자.
 
 ### 2026-07-12 — Slice 4 (파라미터 UI) + 작업 원칙 + phasefield seam 이슈(#14)
 

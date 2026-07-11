@@ -10,6 +10,7 @@ import { isoSegments } from './marchingSquares';
 
 export type { GrayImage, PipelineConfig, StrokeSeg, Pt } from './types';
 export { toGray } from './grayscale';
+export { preprocessGray } from './preprocess';
 export { renderSegments } from './render';
 
 /** 중심에서 가장 먼 코너까지 (coverage_extent=diagonal). */

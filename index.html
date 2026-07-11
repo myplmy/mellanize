@@ -24,6 +24,13 @@
             <option value="tone_only">tone_only (톤만)</option>
           </select>
         </label>
+        <label>전처리
+          <select id="preprocess">
+            <option value="luma_clahe" selected>luma+CLAHE</option>
+            <option value="luma_only">luma only</option>
+            <option value="user_adjust">user adjust</option>
+          </select>
+        </label>
         <label><input type="checkbox" id="autoregen" checked /> 자동 재생성</label>
         <button id="render" type="button">Render</button>
       </div>

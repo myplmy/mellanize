@@ -1,6 +1,7 @@
 import './style.css';
 import {
   toGray,
+  preprocessGray,
   buildSegments,
   renderSegments,
   type GrayImage,
@@ -19,6 +20,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 const fileInput = $<HTMLInputElement>('file');
 const modeSel = $<HTMLSelectElement>('mode');
 const warpSel = $<HTMLSelectElement>('warp');
+const preSel = $<HTMLSelectElement>('preprocess');
 const autoregen = $<HTMLInputElement>('autoregen');
 const renderBtn = $<HTMLButtonElement>('render');
 const statusEl = $<HTMLSpanElement>('status');
@@ -26,14 +28,14 @@ const canvas = $<HTMLCanvasElement>('canvas');
 const basicBox = $<HTMLDivElement>('basic');
 const advBox = $<HTMLDivElement>('advanced');
 
-/** 수치 파라미터 값 (컨트롤이 갱신). */
 const P: Record<string, number> = {
   pitch: 8, tMin: 0.4, tMax: 6, lambda: 4,
   sigma: 1, rho: 2, diffIters: 6, diffKappa: 0.1,
   alongIters: 16, alongStrength: 2, alongReach: 4,
+  contrast: 1, gamma: 1,
 };
 
-interface Spec { key: string; label: string; min: number; max: number; step: number; advanced?: boolean; }
+interface Spec { key: string; label: string; min: number; max: number; step: number; advanced?: boolean; preproc?: boolean; }
 const SPECS: Spec[] = [
   { key: 'pitch', label: 'pitch', min: 2, max: 40, step: 1 },
   { key: 'tMax', label: 'T_max', min: 1, max: 30, step: 0.5 },
@@ -46,12 +48,15 @@ const SPECS: Spec[] = [
   { key: 'alongIters', label: 'along iters', min: 0, max: 40, step: 1, advanced: true },
   { key: 'alongStrength', label: 'along str', min: 0, max: 5, step: 0.1, advanced: true },
   { key: 'alongReach', label: 'along reach', min: 1, max: 10, step: 0.5, advanced: true },
+  { key: 'contrast', label: 'contrast', min: 0, max: 3, step: 0.05, advanced: true, preproc: true },
+  { key: 'gamma', label: 'gamma', min: 0.2, max: 3, step: 0.05, advanced: true, preproc: true },
 ];
 
-let gray: GrayImage | null = null;
+let rawGray: GrayImage | null = null; // Rec.709 luma (전처리 전)
+let procGray: GrayImage | null = null; // 전처리 적용본 (파이프라인 입력)
+let dirtyPreprocess = true;
 let centerOverride: Pt | null = null;
 
-// --- 컨트롤 생성 (슬라이더 + 수치 병행) ---
 for (const s of SPECS) {
   const wrap = document.createElement('label');
   wrap.className = 'param';
@@ -72,12 +77,18 @@ for (const s of SPECS) {
     if (Number.isNaN(v)) return;
     P[s.key] = v;
     other.value = src.value;
+    if (s.preproc) dirtyPreprocess = true;
     scheduleRender();
   };
   range.addEventListener('input', () => onEdit(range, num));
   num.addEventListener('input', () => onEdit(num, range));
   wrap.append(name, range, num);
   (s.advanced ? advBox : basicBox).appendChild(wrap);
+}
+
+function preprocessMode(): 'luma_clahe' | 'luma_only' | 'user_adjust' {
+  const v = preSel.value;
+  return v === 'luma_only' || v === 'user_adjust' ? v : 'luma_clahe';
 }
 
 function config(): PipelineConfig {
@@ -88,6 +99,7 @@ function config(): PipelineConfig {
     pitch: P.pitch, tMin: P.tMin, tMax: P.tMax, step: 1.5, lambda: P.lambda,
     sigma: P.sigma, rho: P.rho, diffIters: P.diffIters, diffKappa: P.diffKappa,
     alongIters: P.alongIters, alongStrength: P.alongStrength, alongReach: P.alongReach,
+    preprocess: preprocessMode(), contrast: P.contrast, gamma: P.gamma,
     center: centerOverride ?? undefined,
   };
 }
@@ -108,17 +120,21 @@ async function loadImage(file: File): Promise<GrayImage> {
 }
 
 function render(): void {
-  if (!gray) return;
+  if (!rawGray) return;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
-  canvas.width = gray.width;
-  canvas.height = gray.height;
+  if (dirtyPreprocess || !procGray) {
+    procGray = preprocessGray(rawGray, preprocessMode(), P.contrast, P.gamma);
+    dirtyPreprocess = false;
+  }
+  canvas.width = procGray.width;
+  canvas.height = procGray.height;
   const t0 = performance.now();
-  const segs = buildSegments(gray, config());
+  const segs = buildSegments(procGray, config());
   renderSegments(ctx, segs);
   const ms = Math.round(performance.now() - t0);
   const ctr = centerOverride ? ` · center(${centerOverride.x | 0},${centerOverride.y | 0})` : '';
-  statusEl.textContent = `${modeSel.value}/${warpSel.value} · ${gray.width}×${gray.height} · 선분 ${segs.length.toLocaleString()} · ${ms}ms${ctr}`;
+  statusEl.textContent = `${modeSel.value}/${warpSel.value}/${preSel.value} · ${procGray.width}×${procGray.height} · 선분 ${segs.length.toLocaleString()} · ${ms}ms${ctr}`;
 }
 
 let timer: number | undefined;
@@ -136,10 +152,13 @@ renderBtn.addEventListener('click', () => {
   render();
 });
 for (const sel of [modeSel, warpSel]) sel.addEventListener('change', scheduleRender);
+preSel.addEventListener('change', () => {
+  dirtyPreprocess = true;
+  scheduleRender();
+});
 
-// 캔버스 클릭 → 나선 중심 지정 (표시 크기→내부 픽셀 매핑)
 canvas.addEventListener('click', (e) => {
-  if (!gray) return;
+  if (!rawGray) return;
   const rect = canvas.getBoundingClientRect();
   centerOverride = {
     x: ((e.clientX - rect.left) / rect.width) * canvas.width,
@@ -153,7 +172,8 @@ fileInput.addEventListener('change', async () => {
   if (!file) return;
   statusEl.textContent = '변환 중…';
   try {
-    gray = await loadImage(file);
+    rawGray = await loadImage(file);
+    dirtyPreprocess = true;
     centerOverride = null;
     render();
   } catch (err) {
