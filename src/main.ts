@@ -21,6 +21,7 @@ const fileInput = $<HTMLInputElement>('file');
 const modeSel = $<HTMLSelectElement>('mode');
 const warpSel = $<HTMLSelectElement>('warp');
 const preSel = $<HTMLSelectElement>('preprocess');
+const alphaSel = $<HTMLSelectElement>('alpha');
 const autoregen = $<HTMLInputElement>('autoregen');
 const renderBtn = $<HTMLButtonElement>('render');
 const statusEl = $<HTMLSpanElement>('status');
@@ -30,7 +31,7 @@ const advBox = $<HTMLDivElement>('advanced');
 
 const P: Record<string, number> = {
   pitch: 8, tMin: 0.4, tMax: 6, lambda: 4,
-  sigma: 1, rho: 2, diffIters: 6, diffKappa: 0.1,
+  sigma: 1, rho: 2, c: 6, diffIters: 6, diffKappa: 0.1,
   alongIters: 16, alongStrength: 2, alongReach: 4,
   contrast: 1, gamma: 1,
 };
@@ -43,6 +44,7 @@ const SPECS: Spec[] = [
   { key: 'tMin', label: 'T_min', min: 0, max: 5, step: 0.1, advanced: true },
   { key: 'sigma', label: 'σ deriv', min: 0, max: 4, step: 0.1, advanced: true },
   { key: 'rho', label: 'ρ tensor', min: 0, max: 6, step: 0.1, advanced: true },
+  { key: 'c', label: 'c height', min: 0, max: 20, step: 0.5, advanced: true },
   { key: 'diffIters', label: 'α iters', min: 0, max: 30, step: 1, advanced: true },
   { key: 'diffKappa', label: 'α κ', min: 0.01, max: 1, step: 0.01, advanced: true },
   { key: 'alongIters', label: 'along iters', min: 0, max: 40, step: 1, advanced: true },
@@ -94,10 +96,10 @@ function preprocessMode(): 'luma_clahe' | 'luma_only' | 'user_adjust' {
 function config(): PipelineConfig {
   return {
     deformationModel: modeSel.value === 'skeleton' ? 'skeleton' : 'phasefield',
-    alphaSource: 'grad',
+    alphaSource: alphaSel.value === 'meanH' ? 'meanH' : alphaSel.value === 'mixed' ? 'mixed' : 'grad',
     warpMode: warpSel.value === 'tone_only' ? 'tone_only' : 'anisotropic',
     pitch: P.pitch, tMin: P.tMin, tMax: P.tMax, step: 1.5, lambda: P.lambda,
-    sigma: P.sigma, rho: P.rho, diffIters: P.diffIters, diffKappa: P.diffKappa,
+    sigma: P.sigma, rho: P.rho, c: P.c, diffIters: P.diffIters, diffKappa: P.diffKappa,
     alongIters: P.alongIters, alongStrength: P.alongStrength, alongReach: P.alongReach,
     preprocess: preprocessMode(), contrast: P.contrast, gamma: P.gamma,
     center: centerOverride ?? undefined,
@@ -151,7 +153,7 @@ renderBtn.addEventListener('click', () => {
   renderBtn.textContent = 'Render';
   render();
 });
-for (const sel of [modeSel, warpSel]) sel.addEventListener('change', scheduleRender);
+for (const sel of [modeSel, warpSel, alphaSel]) sel.addEventListener('change', scheduleRender);
 preSel.addEventListener('change', () => {
   dirtyPreprocess = true;
   scheduleRender();

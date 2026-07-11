@@ -21,8 +21,8 @@ export interface StrokeSeg {
 
 /** deformation_model (docs/claude_mellan_pipeline_v2.md §5). integrate·warp: Slice 7. */
 export type DeformationModel = 'skeleton' | 'phasefield';
-/** alpha_source (§2). meanH·mixed: Slice 6. */
-export type AlphaSource = 'grad';
+/** alpha_source (§2). */
+export type AlphaSource = 'grad' | 'meanH' | 'mixed';
 /** phasefield warp_mode (§5.A). */
 export type WarpMode = 'tone_only' | 'anisotropic';
 /** 전처리 모드 (§1). meanH·mixed 대비 정규화 방식. */
@@ -46,6 +46,8 @@ export interface PipelineConfig {
   sigma: number;
   /** 구조 텐서 평활 ρ. */
   rho: number;
+  /** 몽주 패치 밝기→높이 스케일 (meanH/gaussK/mixed 곡률용). */
+  c: number;
   /** α Perona-Malik 확산 반복 횟수. */
   diffIters: number;
   /** α 확산 에지 임계 κ. */
