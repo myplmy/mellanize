@@ -1,38 +1,72 @@
-import type { GrayImage, SkeletonConfig, StrokePoint } from './types';
+import type { GrayImage, PipelineConfig, Pt, StrokeSeg } from './types';
 import { sampleBilinear } from './grayscale';
 import { archimedes } from './spiral';
+import { sobel } from './derivatives';
+import { structureTensor } from './structureTensor';
+import { gradientAlpha } from './alpha';
+import { warpedTurnField } from './phasefield';
+import { isoSegments } from './marchingSquares';
 
-export type { GrayImage, SkeletonConfig, StrokePoint } from './types';
+export type { GrayImage, PipelineConfig, StrokeSeg } from './types';
 export { toGray } from './grayscale';
-export { renderStrokes } from './render';
+export { renderSegments } from './render';
 
-/**
- * Slice 1 walking skeleton 파이프라인:
- *   그레이스케일 → (왜곡 없는) 아르키메데스 나선 → 밝기→두께 매핑 → StrokePoint[].
- *
- * 두께: t = tMin + (1 − I)·(tMax − tMin)  — 어두울수록 굵다
- * (docs/claude_mellan_pipeline_v2.md §6).
- *
- * 후속 슬라이스: 나선 생성 자리에 deformation_model(phasefield 등), 그 앞에
- * alpha_source·구조텐서 단계가 삽입된다.
- */
-export function buildStrokes(gray: GrayImage, cfg: SkeletonConfig): StrokePoint[] {
-  const center = cfg.center ?? { x: gray.width / 2, y: gray.height / 2 };
-
-  // 중심에서 가장 먼 코너까지 = 전 이미지 커버 (coverage_extent=diagonal).
+/** 중심에서 가장 먼 코너까지 (coverage_extent=diagonal). */
+function rMaxFor(gray: GrayImage, c: Pt): number {
   const corners = [
     { x: 0, y: 0 },
     { x: gray.width, y: 0 },
     { x: 0, y: gray.height },
     { x: gray.width, y: gray.height },
   ];
-  const rMax = Math.max(...corners.map((c) => Math.hypot(c.x - center.x, c.y - center.y)));
+  return Math.max(...corners.map((p) => Math.hypot(p.x - c.x, p.y - c.y)));
+}
 
-  const spiral = archimedes(center, cfg.pitch, rMax, cfg.step);
+/** 선분 중점 밝기 → 두께 t = tMin + (1−I)(tMax−tMin). */
+function toSeg(
+  gray: GrayImage,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  tMin: number,
+  range: number,
+): StrokeSeg {
+  const i = sampleBilinear(gray, (x1 + x2) / 2, (y1 + y2) / 2);
+  return { x1, y1, x2, y2, thickness: tMin + (1 - i) * range };
+}
 
+/**
+ * 파이프라인 진입점. deformation_model 에 따라 분기하여 렌더용 선분을 만든다.
+ * - skeleton  (Slice 1): 왜곡 없는 아르키메데스 나선
+ * - phasefield(Slice 2): grad α + 위상장 tone_only 워프 등위선
+ */
+export function buildSegments(gray: GrayImage, cfg: PipelineConfig): StrokeSeg[] {
+  const center = cfg.center ?? { x: gray.width / 2, y: gray.height / 2 };
+  return cfg.deformationModel === 'phasefield'
+    ? phasefield(gray, cfg, center)
+    : skeleton(gray, cfg, center);
+}
+
+function skeleton(gray: GrayImage, cfg: PipelineConfig, center: Pt): StrokeSeg[] {
+  const pts = archimedes(center, cfg.pitch, rMaxFor(gray, center), cfg.step);
   const range = cfg.tMax - cfg.tMin;
-  return spiral.map((p) => {
-    const i = sampleBilinear(gray, p.x, p.y);
-    return { x: p.x, y: p.y, thickness: cfg.tMin + (1 - i) * range };
-  });
+  const out: StrokeSeg[] = [];
+  for (let i = 1; i < pts.length; i++) {
+    out.push(toSeg(gray, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y, cfg.tMin, range));
+  }
+  return out;
+}
+
+function phasefield(gray: GrayImage, cfg: PipelineConfig, center: Pt): StrokeSeg[] {
+  const { width: w, height: h } = gray;
+  const grad = sobel(gray);
+  // 구조 텐서는 Slice 3(anisotropic 워프)가 소비. tone_only 에서는 계산만 (AC).
+  const tensor = structureTensor(grad, w, h, cfg.rho);
+  void tensor;
+  const alpha = gradientAlpha(grad, w, h, cfg.diffIters, cfg.diffKappa);
+  const { field, min, max } = warpedTurnField(gray, alpha, center, cfg.pitch, cfg.lambda);
+  const isos = isoSegments(field, w, h, min, max);
+  const range = cfg.tMax - cfg.tMin;
+  return isos.map((s) => toSeg(gray, s.x1, s.y1, s.x2, s.y2, cfg.tMin, range));
 }
