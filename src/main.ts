@@ -1,5 +1,11 @@
 import './style.css';
-import { toGray, buildStrokes, renderStrokes, type GrayImage } from './pipeline';
+import {
+  toGray,
+  buildSegments,
+  renderSegments,
+  type GrayImage,
+  type PipelineConfig,
+} from './pipeline';
 
 /** 내부 처리 해상도 상한 (장변, px). 브라우저 성능용 다운샘플. */
 const DOWNSAMPLE_MAX = 1024;
@@ -11,14 +17,15 @@ const $ = <T extends HTMLElement>(id: string): T => {
 };
 
 const fileInput = $<HTMLInputElement>('file');
+const modeSel = $<HTMLSelectElement>('mode');
 const pitchInput = $<HTMLInputElement>('pitch');
 const tmaxInput = $<HTMLInputElement>('tmax');
+const lambdaInput = $<HTMLInputElement>('lambda');
 const statusEl = $<HTMLSpanElement>('status');
 const canvas = $<HTMLCanvasElement>('canvas');
 
 let gray: GrayImage | null = null;
 
-/** 파일 → 다운샘플 → 그레이스케일 GrayImage. */
 async function loadImage(file: File): Promise<GrayImage> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, DOWNSAMPLE_MAX / Math.max(bitmap.width, bitmap.height));
@@ -32,8 +39,25 @@ async function loadImage(file: File): Promise<GrayImage> {
   if (!tctx) throw new Error('2D 컨텍스트를 만들 수 없습니다.');
   tctx.drawImage(bitmap, 0, 0, w, h);
   bitmap.close();
-
   return toGray(tctx.getImageData(0, 0, w, h));
+}
+
+function config(): PipelineConfig {
+  const mode = modeSel.value === 'skeleton' ? 'skeleton' : 'phasefield';
+  return {
+    deformationModel: mode,
+    alphaSource: 'grad',
+    warpMode: 'tone_only',
+    pitch: Number(pitchInput.value) || 8,
+    tMin: 0.4,
+    tMax: Number(tmaxInput.value) || 6,
+    step: 1.5,
+    lambda: Number(lambdaInput.value) || 0,
+    sigma: 1.0,
+    rho: 2.0,
+    diffIters: 6,
+    diffKappa: 0.1,
+  };
 }
 
 function render(): void {
@@ -44,14 +68,12 @@ function render(): void {
   canvas.width = gray.width;
   canvas.height = gray.height;
 
-  const pitch = Number(pitchInput.value) || 8;
-  const tMax = Number(tmaxInput.value) || 6;
   const t0 = performance.now();
-  const strokes = buildStrokes(gray, { pitch, tMin: 0.4, tMax, step: 1.5 });
-  renderStrokes(ctx, strokes);
+  const segs = buildSegments(gray, config());
+  renderSegments(ctx, segs);
   const ms = Math.round(performance.now() - t0);
 
-  statusEl.textContent = `${gray.width}×${gray.height}px · 세그먼트 ${strokes.length.toLocaleString()} · ${ms}ms`;
+  statusEl.textContent = `${modeSel.value} · ${gray.width}×${gray.height}px · 선분 ${segs.length.toLocaleString()} · ${ms}ms`;
 }
 
 fileInput.addEventListener('change', async () => {
@@ -66,6 +88,6 @@ fileInput.addEventListener('change', async () => {
   }
 });
 
-for (const input of [pitchInput, tmaxInput]) {
+for (const input of [modeSel, pitchInput, tmaxInput, lambdaInput]) {
   input.addEventListener('change', render);
 }

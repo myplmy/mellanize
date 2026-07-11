@@ -10,27 +10,42 @@ export interface Pt {
   y: number;
 }
 
-/** 나선 중심축 위의 한 점 + 그 지점 선 두께. */
-export interface StrokePoint {
-  x: number;
-  y: number;
+/** 렌더 단위: 두께를 가진 선분 (skeleton·phasefield 공통 출력). */
+export interface StrokeSeg {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
   thickness: number;
 }
 
-/**
- * Slice 1 walking skeleton 설정.
- * 후속 슬라이스에서 deformation_model·alpha_source 등 교체축이 여기에 추가된다
- * (docs/claude_mellan_pipeline_v2.md §0).
- */
-export interface SkeletonConfig {
-  /** 인접 나선 턴 간 반경 간격 p (px). */
+/** deformation_model (docs/claude_mellan_pipeline_v2.md §5). integrate·warp: Slice 7. */
+export type DeformationModel = 'skeleton' | 'phasefield';
+/** alpha_source (§2). meanH·mixed: Slice 6. */
+export type AlphaSource = 'grad';
+/** phasefield warp_mode (§5.A). anisotropic(along): Slice 3. */
+export type WarpMode = 'tone_only';
+
+export interface PipelineConfig {
+  deformationModel: DeformationModel;
+  alphaSource: AlphaSource;
+  warpMode: WarpMode;
+  /** 인접 나선 턴 반경 간격 p (px). */
   pitch: number;
-  /** 선 최소 두께 (px). */
   tMin: number;
-  /** 선 최대 두께 (px). */
   tMax: number;
-  /** 유선 샘플 목표 스텝 (px). 작을수록 매끄럽고 무겁다. */
+  /** skeleton 호길이 샘플 스텝 (px). */
   step: number;
   /** 나선 중심. 미지정 시 이미지 기하 중심. */
   center?: Pt;
+  /** phasefield 톤 워프 강도. */
+  lambda: number;
+  /** 도함수 가우시안 σ. */
+  sigma: number;
+  /** 구조 텐서 평활 ρ. */
+  rho: number;
+  /** α Perona-Malik 확산 반복 횟수. */
+  diffIters: number;
+  /** α 확산 에지 임계 κ. */
+  diffKappa: number;
 }

@@ -14,7 +14,7 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 (Slice 1/10) | **Slice 1 완료·배포**. 다음: #2 phasefield 톤 워프 → #3 이방성(기본 조합) |
+| 3 | v2 알고리즘 구현 | 진행 중 (Slice 2/10) | Slice 1·2 완료. 다음: #3 이방성 워프(along, 기본 조합 완성) |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
 | 6 | CI Node 20 deprecation | 해결 | 액션 최신 메이저 pin(checkout v7·setup-node v6·upload-pages-artifact v5·deploy-pages v5, node-version 22) → node24 타깃. github changelog 2025-09-19 권장 해법(임시 env 회피 아님) |
@@ -22,6 +22,14 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-12 — Slice 2 (phasefield 톤 워프) + CI node24
+
+- **Slice 2(#2) 구현**: 공통 전처리(Sobel `derivatives` + `structureTensor`) → `alpha`(grad, Perona-Malik 확산) → `phasefield`(턴 좌표 + tone_only 워프) → `marchingSquares`(정수 등위선) → 가변폭 렌더. deformation_model 스위치(skeleton/phasefield) + λ 컨트롤.
+- **검증**: 빌드(tsc strict, 14 modules) + 브라우저. 커버리지 코너 전부 잉크, 두께=톤. **warp 기하 작동은 λ 의존**(λ1.5≈skeleton, λ5 에지 bunching 1.6→2.2) → 기본 λ 1.5→4 상향.
+- **개념 정정(중요)**: `tone_only` 워프는 **에지 구동 간격 변조**(α가 에지에서 급증)이지, "어두운 영역 전역 조밀"이 아니다. 톤→밀도(dark=denser)는 `thickness_plus_spacing`(Slice 8, 주파수 분해)의 몫. #2 AC 문구 해석 시 유의.
+- **미비/후속**: λ 상한(monotonicity gap cap) 미구현 → 과대 λ 시 자기교차 위험(Slice 3/8에서 보강). θ=0 seam 얇은 갭(marchingSquares 브랜치컷 skip).
+- **CI**: node20 deprecation 해소(PR #11, checkout v7·setup-node v6·upload-pages-artifact v5·deploy-pages v5).
 
 ### 2026-07-11 — 티켓 분해 + Slice 1 구현·배포
 
