@@ -1,0 +1,30 @@
+{
+  "_comment": "워크플로우 스킬(plan-doc, pr-workflow, impact-analysis, session-handoff)이 읽는 프로젝트별 상수. 스킬 로직은 프로젝트 중립이며, 프로젝트 고유 값은 이 파일에서만 정의한다. 새 프로젝트에 스킬을 이식할 때 이 파일만 채우면 된다.",
+
+  "_excludedPaths": "pr-workflow: PR staging에서 영구 제외할 경로(prefix 매칭). .env/개인 설정 외 대용량·바이너리·재생성 산출물 등. 아래는 최소 기본값.",
+  "excludedPaths": [
+    ".claude/settings.local.json",
+    ".env"
+  ],
+
+  "_baseBranch": "pr-workflow: PR base 고정값. null이면 detect_base.sh가 자동 감지(메타/env/휴리스틱). 커밋 이력이 쌓이면 명시 권장.",
+  "baseBranch": null,
+
+  "_planDir": "plan-doc: 기획/설계 문서 디렉토리. 이 프로젝트는 docs/ 사용.",
+  "planDir": "docs",
+
+  "_planDoneDir": "plan-doc: suffix 이관(_done 등) 시 완료 문서 보관 위치.",
+  "planDoneDir": "docs/done",
+
+  "_handoffDir": "session-handoff: 세션 핸드오프 메모 저장 위치(worktree 루트 기준 상대경로).",
+  "handoffDir": ".claude/handoff",
+
+  "_domainAxes": "impact-analysis F4: 범용 5축(코드/데이터/테스트/문서/기술부채) 외에 이 프로젝트 고유 영향 축을 추가. 예: 시뮬레이터라면 [\"RNG/결정론\",\"엔진 버전\"]. 비면 5축만 사용.",
+  "domainAxes": [],
+
+  "_docImpactTargets": "pr-workflow: PR body의 'Doc Impact' 섹션에서 영향 평가할 정본 문서 목록. 비면 Doc Impact 섹션 자체를 생략한다.",
+  "docImpactTargets": [],
+
+  "_singleSource": "plan-doc: 하위 문서에서 literal 재정의를 금지하고 참조로 대체해야 하는 수치·enum·수식의 단일 소스 위치. { item, source, refForm } 형식. 프로젝트별로 채운다.",
+  "singleSource": []
+}

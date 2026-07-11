@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mellanize — Claude Mellan 스타일 변환</title>
+  </head>
+  <body>
+    <main>
+      <h1>mellanize</h1>
+      <p class="sub">이미지 → Claude Mellan 스타일 단일 나선 판화 (walking skeleton)</p>
+
+      <div class="controls">
+        <label class="file">
+          이미지 선택
+          <input type="file" id="file" accept="image/*" />
+        </label>
+        <label>pitch <input type="number" id="pitch" value="8" min="2" max="40" step="1" /></label>
+        <label>T<sub>max</sub> <input type="number" id="tmax" value="6" min="1" max="30" step="0.5" /></label>
+        <span id="status" class="status">이미지를 선택하세요.</span>
+      </div>
+
+      <canvas id="canvas"></canvas>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

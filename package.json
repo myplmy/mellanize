@@ -1,0 +1,16 @@
+{
+  "name": "mellanize",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "이미지를 Claude Mellan 스타일 단일 나선 판화로 변환하는 웹 앱",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
