@@ -14,7 +14,8 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 (Slice 3/10) | Slice 1~3 완료 → **기본 조합 phasefield+grad+along 완성**. 다음: #4 파라미터 UI+중심 클릭 |
+| 3 | v2 알고리즘 구현 | 진행 중 (Slice 4/10) | Slice 1~4 완료. 다음: #5 전처리 옵션 |
+| 7 | phasefield 단일연속선(#14) | 대기 (bug, ready-for-agent) | θ=0 seam 갭·역방향 + 레벨셋 아크가 동심 등고선(stitch 미구현) + 중간 끊김. 계획 외 발견. integrate(#7)는 태생적 단일선이라 무관 |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
 | 6 | CI Node 20 deprecation | 해결 | 액션 최신 메이저 pin(checkout v7·setup-node v6·upload-pages-artifact v5·deploy-pages v5, node-version 22) → node24 타깃. github changelog 2025-09-19 권장 해법(임시 env 회피 아님) |
@@ -22,6 +23,13 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-12 — Slice 4 (파라미터 UI) + 작업 원칙 + phasefield seam 이슈(#14)
+
+- **Slice 4(#4) 구현**: 기본(pitch·T_max·λ) + 고급 접이식(T_min·σ·ρ·diffIters·diffKappa·alongIters·alongStrength·alongReach) 파라미터를 슬라이더+수치 병행 컨트롤로 노출. auto_regenerate 토글(디바운스 200ms)+Render 버튼. center_mode=click(캔버스 클릭 중심). #4 범위를 확장해 그간 하드코딩하던 엔진 수치 전부 노출.
+- **작업 원칙 확립**: AI는 수치·구조 검증만, 시각 품질 판단·수치 튜닝은 사용자 (memory: ai-verify-numeric-user-tunes-visual). 검증도 배선·값전달·크래시·커버리지만 확인.
+- **검증(구조)**: build(tsc). 컨트롤 3기본+8고급 생성, pitch 변경→segs 반영(auto ON), auto OFF시 미갱신+Render로 반영, center 클릭 반영. 시각 평가는 사용자.
+- **#14 신설(사용자 지적)**: anisotropic 사용 시 (a) +x축 seam 역방향·갭, (b) 동심 등고선(단일 연속선 아님, stitch 미구현), (c) 중간 끊김. 현재 계획에 없어 bug 이슈로 트래킹. 진짜 단일 연속선은 stitch(#14) 또는 integrate 모델(#7).
 
 ### 2026-07-12 — Slice 3 (이방성 워프 = along) + v2 문서 공식 정정
 

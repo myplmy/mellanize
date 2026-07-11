@@ -8,7 +8,7 @@ import { warpedTurnField } from './phasefield';
 import { alongSmooth, fieldRange } from './anisoWarp';
 import { isoSegments } from './marchingSquares';
 
-export type { GrayImage, PipelineConfig, StrokeSeg } from './types';
+export type { GrayImage, PipelineConfig, StrokeSeg, Pt } from './types';
 export { toGray } from './grayscale';
 export { renderSegments } from './render';
 
