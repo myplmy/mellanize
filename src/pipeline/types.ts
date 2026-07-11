@@ -10,14 +10,15 @@ export interface Pt {
   y: number;
 }
 
-/** 렌더 단위: 두께를 가진 선분 (skeleton·phasefield 공통 출력). */
-export interface StrokeSeg {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+/** 폴리라인 정점: 위치 + 그 지점 선 두께. */
+export interface StrokePoint {
+  x: number;
+  y: number;
   thickness: number;
 }
+
+/** 연속 폴리라인 (순서 있는 정점열). 렌더 단위. */
+export type Polyline = StrokePoint[];
 
 /** deformation_model (docs/claude_mellan_pipeline_v2.md §5). integrate·warp: Slice 7. */
 export type DeformationModel = 'skeleton' | 'phasefield';

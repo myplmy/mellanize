@@ -2,8 +2,8 @@ import './style.css';
 import {
   toGray,
   preprocessGray,
-  buildSegments,
-  renderSegments,
+  buildPolylines,
+  renderPolylines,
   type GrayImage,
   type PipelineConfig,
   type Pt,
@@ -132,11 +132,12 @@ function render(): void {
   canvas.width = procGray.width;
   canvas.height = procGray.height;
   const t0 = performance.now();
-  const segs = buildSegments(procGray, config());
-  renderSegments(ctx, segs);
+  const polys = buildPolylines(procGray, config());
+  renderPolylines(ctx, polys);
   const ms = Math.round(performance.now() - t0);
+  const pts = polys.reduce((n, p) => n + p.length, 0);
   const ctr = centerOverride ? ` · center(${centerOverride.x | 0},${centerOverride.y | 0})` : '';
-  statusEl.textContent = `${modeSel.value}/${warpSel.value}/${preSel.value} · ${procGray.width}×${procGray.height} · 선분 ${segs.length.toLocaleString()} · ${ms}ms${ctr}`;
+  statusEl.textContent = `${modeSel.value}/${warpSel.value}/${preSel.value} · ${procGray.width}×${procGray.height} · 폴리라인 ${polys.length.toLocaleString()}·점 ${pts.toLocaleString()} · ${ms}ms${ctr}`;
 }
 
 let timer: number | undefined;
