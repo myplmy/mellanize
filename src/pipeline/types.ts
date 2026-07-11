@@ -23,8 +23,8 @@ export interface StrokeSeg {
 export type DeformationModel = 'skeleton' | 'phasefield';
 /** alpha_source (§2). meanH·mixed: Slice 6. */
 export type AlphaSource = 'grad';
-/** phasefield warp_mode (§5.A). anisotropic(along): Slice 3. */
-export type WarpMode = 'tone_only';
+/** phasefield warp_mode (§5.A). */
+export type WarpMode = 'tone_only' | 'anisotropic';
 
 export interface PipelineConfig {
   deformationModel: DeformationModel;
@@ -48,4 +48,10 @@ export interface PipelineConfig {
   diffIters: number;
   /** α 확산 에지 임계 κ. */
   diffKappa: number;
+  /** anisotropic 워프: v₂ 방향 평활 반복 횟수. */
+  alongIters: number;
+  /** anisotropic 워프: coherence 대비 평활 강도. */
+  alongStrength: number;
+  /** anisotropic 워프: v₂ 방향 샘플 도달 거리(px). */
+  alongReach: number;
 }

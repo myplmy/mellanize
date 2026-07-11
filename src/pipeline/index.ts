@@ -2,9 +2,10 @@ import type { GrayImage, PipelineConfig, Pt, StrokeSeg } from './types';
 import { sampleBilinear } from './grayscale';
 import { archimedes } from './spiral';
 import { sobel } from './derivatives';
-import { structureTensor } from './structureTensor';
+import { structureTensor, orientation } from './structureTensor';
 import { gradientAlpha } from './alpha';
 import { warpedTurnField } from './phasefield';
+import { alongSmooth, fieldRange } from './anisoWarp';
 import { isoSegments } from './marchingSquares';
 
 export type { GrayImage, PipelineConfig, StrokeSeg } from './types';
@@ -61,11 +62,20 @@ function skeleton(gray: GrayImage, cfg: PipelineConfig, center: Pt): StrokeSeg[]
 function phasefield(gray: GrayImage, cfg: PipelineConfig, center: Pt): StrokeSeg[] {
   const { width: w, height: h } = gray;
   const grad = sobel(gray);
-  // 구조 텐서는 Slice 3(anisotropic 워프)가 소비. tone_only 에서는 계산만 (AC).
   const tensor = structureTensor(grad, w, h, cfg.rho);
-  void tensor;
   const alpha = gradientAlpha(grad, w, h, cfg.diffIters, cfg.diffKappa);
-  const { field, min, max } = warpedTurnField(gray, alpha, center, cfg.pitch, cfg.lambda);
+
+  const pf = warpedTurnField(gray, alpha, center, cfg.pitch, cfg.lambda);
+  let field = pf.field;
+  let { min, max } = pf;
+
+  if (cfg.warpMode === 'anisotropic') {
+    // along 실현: v₂(에지 방향)를 따라 위상장을 방향성 평활 → 선이 에지를 따라 굴곡.
+    const ori = orientation(tensor);
+    field = alongSmooth(field, w, h, ori, cfg.alongIters, cfg.alongStrength, cfg.alongReach);
+    ({ min, max } = fieldRange(field));
+  }
+
   const isos = isoSegments(field, w, h, min, max);
   const range = cfg.tMax - cfg.tMin;
   return isos.map((s) => toSeg(gray, s.x1, s.y1, s.x2, s.y2, cfg.tMin, range));

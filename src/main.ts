@@ -18,6 +18,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 
 const fileInput = $<HTMLInputElement>('file');
 const modeSel = $<HTMLSelectElement>('mode');
+const warpSel = $<HTMLSelectElement>('warp');
 const pitchInput = $<HTMLInputElement>('pitch');
 const tmaxInput = $<HTMLInputElement>('tmax');
 const lambdaInput = $<HTMLInputElement>('lambda');
@@ -44,10 +45,11 @@ async function loadImage(file: File): Promise<GrayImage> {
 
 function config(): PipelineConfig {
   const mode = modeSel.value === 'skeleton' ? 'skeleton' : 'phasefield';
+  const warp = warpSel.value === 'tone_only' ? 'tone_only' : 'anisotropic';
   return {
     deformationModel: mode,
     alphaSource: 'grad',
-    warpMode: 'tone_only',
+    warpMode: warp,
     pitch: Number(pitchInput.value) || 8,
     tMin: 0.4,
     tMax: Number(tmaxInput.value) || 6,
@@ -57,6 +59,9 @@ function config(): PipelineConfig {
     rho: 2.0,
     diffIters: 6,
     diffKappa: 0.1,
+    alongIters: 16,
+    alongStrength: 2,
+    alongReach: 4,
   };
 }
 
@@ -88,6 +93,6 @@ fileInput.addEventListener('change', async () => {
   }
 });
 
-for (const input of [modeSel, pitchInput, tmaxInput, lambdaInput]) {
+for (const input of [modeSel, warpSel, pitchInput, tmaxInput, lambdaInput]) {
   input.addEventListener('change', render);
 }
