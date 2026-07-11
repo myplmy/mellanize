@@ -25,6 +25,8 @@ export type DeformationModel = 'skeleton' | 'phasefield';
 export type AlphaSource = 'grad';
 /** phasefield warp_mode (§5.A). */
 export type WarpMode = 'tone_only' | 'anisotropic';
+/** 전처리 모드 (§1). meanH·mixed 대비 정규화 방식. */
+export type PreprocessMode = 'luma_clahe' | 'luma_only' | 'user_adjust';
 
 export interface PipelineConfig {
   deformationModel: DeformationModel;
@@ -54,4 +56,10 @@ export interface PipelineConfig {
   alongStrength: number;
   /** anisotropic 워프: v₂ 방향 샘플 도달 거리(px). */
   alongReach: number;
+  /** 전처리 모드. */
+  preprocess: PreprocessMode;
+  /** user_adjust 대비 (1=원본). */
+  contrast: number;
+  /** user_adjust 감마 (1=원본). */
+  gamma: number;
 }
