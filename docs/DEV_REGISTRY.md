@@ -13,14 +13,22 @@
 | # | 항목 | 상태 | 비고 |
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
-| 5 | v2 구현 계획 수립 (to-issues/plan) | 미착수 | v2 §7 버전 목록·교체축을 구현 티켓으로 분해 예정 |
-| 2 | v2 알고리즘 구현 | 미착수 | [`claude_mellan_pipeline_v2.md`](claude_mellan_pipeline_v2.md) §7 초기 버전 목록: α 3버전(grad/meanH/mixed) + deformation 3종(phasefield/integrate/warp) |
-| 3 | GitHub Pages 호스팅 + 이미지 변환 웹페이지 | 미착수 | 정적 사이트 → 클라이언트 측 실행 전제. 출력 표현(SVG vs Canvas)·성능 차수 2에서 확정 |
-| 4 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
+| 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
+| 3 | v2 알고리즘 구현 | 진행 중 (Slice 1/10) | **Slice 1 완료·배포**. 다음: #2 phasefield 톤 워프 → #3 이방성(기본 조합) |
+| 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
+| 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
+| 6 | CI Node 20 deprecation | 해결 | 액션 최신 메이저 pin(checkout v7·setup-node v6·upload-pages-artifact v5·deploy-pages v5, node-version 22) → node24 타깃. github changelog 2025-09-19 권장 해법(임시 env 회피 아님) |
 
 ---
 
 ## 작업 로그
+
+### 2026-07-11 — 티켓 분해 + Slice 1 구현·배포
+
+- **티켓 분해(to-issues)**: v2를 tracer-bullet 수직 슬라이스 10개로 분해 → GitHub 이슈 #1~#10 생성(트래커=GitHub, needs-triage 라벨). 우선 경로 #1→#2→#3(기본 조합).
+- **기술 스택**: Vite + TS + Canvas, GitHub Actions로 Pages 배포. (setup-matt-pocock-skills 미실행 — 트래커는 이번에 GitHub로 임시 확정. 정식 설정은 필요 시 그 스킬로.)
+- **Slice 1 완료·배포**: 업로드→그레이스케일(Rec.709)→왜곡 없는 아르키메데스 나선→가변폭 Canvas 렌더. 로컬 검증(ink 비율 중심 0.748→코너 0.159, 어둠→굵기 단조) + 라이브 배포(HTTP 200). 커밋 805d716.
+- **pipeline 모듈 구조**: grayscale/spiral/render/index 분리 — 후속 슬라이스에서 나선 자리에 deformation_model, 앞에 α·구조텐서 삽입.
 
 ### 2026-07-11 — 파이프라인 v2 설계 (grill 차수 3, 종료)
 
