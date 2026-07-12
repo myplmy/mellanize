@@ -22,6 +22,8 @@ const modeSel = $<HTMLSelectElement>('mode');
 const warpSel = $<HTMLSelectElement>('warp');
 const preSel = $<HTMLSelectElement>('preprocess');
 const alphaSel = $<HTMLSelectElement>('alpha');
+const lineSel = $<HTMLSelectElement>('lineorient');
+const signSel = $<HTMLSelectElement>('signhandling');
 const autoregen = $<HTMLInputElement>('autoregen');
 const renderBtn = $<HTMLButtonElement>('render');
 const statusEl = $<HTMLSpanElement>('status');
@@ -33,7 +35,7 @@ const P: Record<string, number> = {
   pitch: 8, tMin: 0.4, tMax: 6, lambda: 4,
   sigma: 1, rho: 2, c: 6, diffIters: 6, diffKappa: 0.1,
   alongIters: 16, alongStrength: 2, alongReach: 4,
-  contrast: 1, gamma: 1,
+  contrast: 1, gamma: 1, warpStrength: 0.6,
 };
 
 interface Spec { key: string; label: string; min: number; max: number; step: number; advanced?: boolean; preproc?: boolean; }
@@ -50,6 +52,7 @@ const SPECS: Spec[] = [
   { key: 'alongIters', label: 'along iters', min: 0, max: 40, step: 1, advanced: true },
   { key: 'alongStrength', label: 'along str', min: 0, max: 5, step: 0.1, advanced: true },
   { key: 'alongReach', label: 'along reach', min: 1, max: 10, step: 0.5, advanced: true },
+  { key: 'warpStrength', label: 'warp μ', min: 0, max: 1, step: 0.05, advanced: true },
   { key: 'contrast', label: 'contrast', min: 0, max: 3, step: 0.05, advanced: true, preproc: true },
   { key: 'gamma', label: 'gamma', min: 0.2, max: 3, step: 0.05, advanced: true, preproc: true },
 ];
@@ -93,15 +96,23 @@ function preprocessMode(): 'luma_clahe' | 'luma_only' | 'user_adjust' {
   return v === 'luma_only' || v === 'user_adjust' ? v : 'luma_clahe';
 }
 
+function deformMode(): PipelineConfig['deformationModel'] {
+  const v = modeSel.value;
+  return v === 'skeleton' || v === 'integrate' || v === 'warp' ? v : 'phasefield';
+}
+
 function config(): PipelineConfig {
   return {
-    deformationModel: modeSel.value === 'skeleton' ? 'skeleton' : 'phasefield',
+    deformationModel: deformMode(),
     alphaSource: alphaSel.value === 'meanH' ? 'meanH' : alphaSel.value === 'mixed' ? 'mixed' : 'grad',
     warpMode: warpSel.value === 'tone_only' ? 'tone_only' : 'anisotropic',
     pitch: P.pitch, tMin: P.tMin, tMax: P.tMax, step: 1.5, lambda: P.lambda,
     sigma: P.sigma, rho: P.rho, c: P.c, diffIters: P.diffIters, diffKappa: P.diffKappa,
     alongIters: P.alongIters, alongStrength: P.alongStrength, alongReach: P.alongReach,
     preprocess: preprocessMode(), contrast: P.contrast, gamma: P.gamma,
+    warpStrength: P.warpStrength,
+    lineOrientation: lineSel.value === 'across' ? 'across' : lineSel.value === 'switch' ? 'switch' : 'along',
+    signHandling: signSel.value === 'spiralalign' ? 'spiralalign' : 'tensorblend',
     center: centerOverride ?? undefined,
   };
 }
@@ -154,7 +165,7 @@ renderBtn.addEventListener('click', () => {
   renderBtn.textContent = 'Render';
   render();
 });
-for (const sel of [modeSel, warpSel, alphaSel]) sel.addEventListener('change', scheduleRender);
+for (const sel of [modeSel, warpSel, alphaSel, lineSel, signSel]) sel.addEventListener('change', scheduleRender);
 preSel.addEventListener('change', () => {
   dirtyPreprocess = true;
   scheduleRender();

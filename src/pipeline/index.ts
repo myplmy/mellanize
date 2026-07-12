@@ -7,6 +7,7 @@ import { computeAlpha } from './alpha';
 import { warpedTurnField } from './phasefield';
 import { alongSmooth, fieldRange } from './anisoWarp';
 import { isoPolylines } from './marchingSquares';
+import { integrateModel, warpModel } from './vectorModels';
 
 export type { GrayImage, PipelineConfig, StrokePoint, Polyline, Pt } from './types';
 export { toGray } from './grayscale';
@@ -40,9 +41,28 @@ function toStrokePolyline(gray: GrayImage, pts: Pt[], tMin: number, range: numbe
  */
 export function buildPolylines(gray: GrayImage, cfg: PipelineConfig): Polyline[] {
   const center = cfg.center ?? { x: gray.width / 2, y: gray.height / 2 };
-  return cfg.deformationModel === 'phasefield'
-    ? phasefield(gray, cfg, center)
-    : skeleton(gray, cfg, center);
+  switch (cfg.deformationModel) {
+    case 'phasefield':
+      return phasefield(gray, cfg, center);
+    case 'integrate':
+    case 'warp':
+      return vectorModel(gray, cfg, center);
+    default:
+      return skeleton(gray, cfg, center);
+  }
+}
+
+/** integrate·warp: 벡터장 기반 단일 연속 폴리라인 (Slice 7). */
+function vectorModel(gray: GrayImage, cfg: PipelineConfig, center: Pt): Polyline[] {
+  const { width: w, height: h } = gray;
+  const grad = sobel(gray);
+  const ori = orientation(structureTensor(grad, w, h, cfg.rho));
+  const alpha = computeAlpha(gray, grad, cfg);
+  const pts =
+    cfg.deformationModel === 'warp'
+      ? warpModel(gray, cfg, center, ori, alpha)
+      : integrateModel(gray, cfg, center, ori, alpha);
+  return [toStrokePolyline(gray, pts, cfg.tMin, cfg.tMax - cfg.tMin)];
 }
 
 function skeleton(gray: GrayImage, cfg: PipelineConfig, center: Pt): Polyline[] {
