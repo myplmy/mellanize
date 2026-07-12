@@ -24,6 +24,13 @@
 
 ## 작업 로그
 
+### 2026-07-12 — #26 integrate 커버리지 분석·수정 + 신규 이슈(#27 start angle)
+
+- **#26 원인 분석(실측)**: integrate 점수 ≈ 경로/step. 고정 상한 400k가 큰 rMax(off-center)에서 truncate → 부분 커버. 더 깊게: integrate는 **이미지 텐서 유선**을 따르므로 궤적이 텐서 지배적 → off-center 시드는 텐서 궤도에 끌려 불균등(캡·αCap 조절로도 해결 안 됨). 커버리지 그리드로 확인.
+- **수정**: 고정 400k → **rMax 기반 동적 상한(π·rMax²·4/(pitch·step), 상한 1M)**. `integrateAlphaCap`(텐서 상한) 사용자 파라미터 노출. 라디얼-진행 클램프 시도했으나 내부 winding 붕괴로 폐기(단조 클램프 유지).
+- **검증**: 중심 배치 = 28k점(유계, 67ms), 5×5 그리드 전 셀 0.45~0.87 **균등 전면 커버**. off-center(코너)는 잔여 불균등 = 모델 특성으로 문서화(균등 필요 시 warp/phasefield 또는 중앙 시드).
+- **#27 신설**: 나선 시작각(startAngle 0~359°). #8과 함께 구현 권장(나선 생성 레이어).
+
 ### 2026-07-12 — Slice 7 (integrate·warp 벡터 모델)
 
 - **Slice 7(#7) 구현**: `vectorModels.ts` — integrate(V_final RK4 + α cap 0.85 단조 클램프 + 역행 방지 + 대각 rMax 종료), warp(기준 나선 샘플 + 변위 |δ|<pitch/2). `sign_handling`(tensorblend 이중각 보간+연속성 / spiralalign 벡터블렌드), `line_orientation`(along v₂ / across v₁ / switch β) config·UI 추가. deformationModel 스위치 4종(phasefield/integrate/warp/skeleton).

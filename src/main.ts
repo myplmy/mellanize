@@ -35,7 +35,7 @@ const P: Record<string, number> = {
   pitch: 8, tMin: 0.4, tMax: 6, lambda: 4,
   sigma: 1, rho: 2, c: 6, diffIters: 6, diffKappa: 0.1,
   alongIters: 16, alongStrength: 2, alongReach: 4,
-  contrast: 1, gamma: 1, warpStrength: 0.6,
+  contrast: 1, gamma: 1, warpStrength: 0.6, integrateAlphaCap: 0.8,
 };
 
 interface Spec { key: string; label: string; min: number; max: number; step: number; advanced?: boolean; preproc?: boolean; }
@@ -53,6 +53,7 @@ const SPECS: Spec[] = [
   { key: 'alongStrength', label: 'along str', min: 0, max: 5, step: 0.1, advanced: true },
   { key: 'alongReach', label: 'along reach', min: 1, max: 10, step: 0.5, advanced: true },
   { key: 'warpStrength', label: 'warp μ', min: 0, max: 1, step: 0.05, advanced: true },
+  { key: 'integrateAlphaCap', label: 'integ αcap', min: 0.3, max: 0.98, step: 0.02, advanced: true },
   { key: 'contrast', label: 'contrast', min: 0, max: 3, step: 0.05, advanced: true, preproc: true },
   { key: 'gamma', label: 'gamma', min: 0.2, max: 3, step: 0.05, advanced: true, preproc: true },
 ];
@@ -113,6 +114,7 @@ function config(): PipelineConfig {
     warpStrength: P.warpStrength,
     lineOrientation: lineSel.value === 'across' ? 'across' : lineSel.value === 'switch' ? 'switch' : 'along',
     signHandling: signSel.value === 'spiralalign' ? 'spiralalign' : 'tensorblend',
+    integrateAlphaCap: P.integrateAlphaCap,
     center: centerOverride ?? undefined,
   };
 }

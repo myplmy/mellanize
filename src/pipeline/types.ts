@@ -75,4 +75,6 @@ export interface PipelineConfig {
   lineOrientation: LineOrientation;
   /** integrate·warp: 부호 처리. */
   signHandling: SignHandling;
+  /** integrate: α 상한(텐서 최대 비중). 낮을수록 나선 복원·커버리지↑·점수↓. */
+  integrateAlphaCap: number;
 }

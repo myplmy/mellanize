@@ -73,8 +73,16 @@ export function integrateModel(
   const a = cfg.pitch / (2 * Math.PI);
   const rMax = rMaxFor(gray, center);
   const step = Math.max(0.5, cfg.step);
-  const MAX_STEPS = 400000;
-  const ALPHA_CAP = 0.85; // V_spiral 성분 ≥15% 보장 → 단조 진행
+  const ALPHA_CAP = cfg.integrateAlphaCap; // V_spiral 성분 ≥(1−cap) 보장 → 단조 진행
+
+  // 동적 스텝 상한: rMax 기반(고정 400k 대체 → 중심 배치 시 truncate 없음).
+  // NOTE: integrate 는 이미지 텐서 유선을 따르므로 커버리지가 텐서 지배적이다. 중심 배치는
+  // 잘 덮지만, 강한 구조 이미지에서 시드를 크게 off-center 하면 텐서 궤도에 끌려 불균등할 수 있다
+  // (모델 특성 #26). 균등 커버리지가 필요하면 warp/phasefield(시드 중심) 또는 중앙 시드 사용.
+  const MAX_STEPS = Math.min(
+    1_000_000,
+    Math.max(60_000, Math.ceil((Math.PI * rMax * rMax * 4) / (cfg.pitch * step))),
+  );
 
   let prevT: Pt = { x: 1, y: 0 };
 
@@ -100,7 +108,7 @@ export function integrateModel(
     }
     let m = Math.hypot(vx, vy) || 1;
     vx /= m; vy /= m;
-    // 단조 클램프: 나선 진행 역행 방지
+    // 단조 클램프: 나선 진행 역행 방지 (자연 winding 보존)
     if (vx * vs.x + vy * vs.y < 0.1) {
       vx += vs.x; vy += vs.y;
       m = Math.hypot(vx, vy) || 1;
