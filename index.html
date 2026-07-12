@@ -53,6 +53,18 @@
             <option value="spiralalign">spiralalign</option>
           </select>
         </label>
+        <label>톤
+          <select id="tone" title="thickness_plus_spacing: 넓은 명암은 간격, 디테일은 두께">
+            <option value="thickness_only" selected>두께만</option>
+            <option value="thickness_plus_spacing">두께+간격</option>
+          </select>
+        </label>
+        <label>범위
+          <select id="coverage">
+            <option value="diagonal" selected>대각(전체)</option>
+            <option value="fixed_turns">고정 턴수</option>
+          </select>
+        </label>
         <label><input type="checkbox" id="autoregen" checked /> 자동 재생성</label>
         <button id="render" type="button">Render</button>
       </div>

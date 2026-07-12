@@ -32,6 +32,10 @@ export type PreprocessMode = 'luma_clahe' | 'luma_only' | 'user_adjust';
 export type LineOrientation = 'along' | 'across' | 'switch';
 /** 부호 처리 (§4). integrate·warp 전용. */
 export type SignHandling = 'tensorblend' | 'spiralalign';
+/** 톤 채널 (§6). */
+export type ToneChannels = 'thickness_only' | 'thickness_plus_spacing';
+/** 커버리지 범위 (§8). */
+export type CoverageExtent = 'diagonal' | 'fixed_turns';
 
 export interface PipelineConfig {
   deformationModel: DeformationModel;
@@ -77,4 +81,12 @@ export interface PipelineConfig {
   signHandling: SignHandling;
   /** integrate: α 상한(텐서 최대 비중). 낮을수록 나선 복원·커버리지↑·점수↓. */
   integrateAlphaCap: number;
+  /** 나선 시작 각도 (도, 0~359). */
+  startAngle: number;
+  /** 톤 채널 (thickness_only / thickness_plus_spacing). */
+  toneChannels: ToneChannels;
+  /** 커버리지 범위 (diagonal / fixed_turns). */
+  coverageExtent: CoverageExtent;
+  /** fixed_turns 시 턴 수 N. */
+  fixedTurns: number;
 }

@@ -9,15 +9,6 @@ import { archimedes } from './spiral';
  * - warp     : 기준 나선 샘플 + 변위
  */
 
-/** 중심에서 가장 먼 코너 거리. */
-function rMaxFor(gray: GrayImage, c: Pt): number {
-  const cs = [
-    { x: 0, y: 0 }, { x: gray.width, y: 0 },
-    { x: 0, y: gray.height }, { x: gray.width, y: gray.height },
-  ];
-  return Math.max(...cs.map((p) => Math.hypot(p.x - c.x, p.y - c.y)));
-}
-
 /** 아르키메데스 나선 단위 접선 t 와 외향 법선 n (a = pitch/2π). */
 function spiralVec(p: Pt, center: Pt, a: number): { t: Pt; n: Pt } {
   const dx = p.x - center.x;
@@ -68,10 +59,10 @@ export function integrateModel(
   center: Pt,
   ori: OrientationField,
   alpha: Float32Array,
+  rMax: number,
 ): Pt[] {
   const { width: w, height: h } = gray;
   const a = cfg.pitch / (2 * Math.PI);
-  const rMax = rMaxFor(gray, center);
   const step = Math.max(0.5, cfg.step);
   const ALPHA_CAP = cfg.integrateAlphaCap; // V_spiral 성분 ≥(1−cap) 보장 → 단조 진행
 
@@ -117,8 +108,9 @@ export function integrateModel(
     return { x: vx, y: vy };
   };
 
+  const th0 = ((cfg.startAngle || 0) * Math.PI) / 180;
   const pts: Pt[] = [];
-  let p: Pt = { x: center.x + a * 0.5, y: center.y };
+  let p: Pt = { x: center.x + a * 0.5 * Math.cos(th0), y: center.y + a * 0.5 * Math.sin(th0) };
   for (let k = 0; k < MAX_STEPS; k++) {
     pts.push({ x: p.x, y: p.y });
     if (Math.hypot(p.x - center.x, p.y - center.y) > rMax) break;
@@ -141,10 +133,12 @@ export function warpModel(
   center: Pt,
   ori: OrientationField,
   alpha: Float32Array,
+  rMax: number,
 ): Pt[] {
   const { width: w, height: h } = gray;
   const a = cfg.pitch / (2 * Math.PI);
-  const base = archimedes(center, cfg.pitch, rMaxFor(gray, center), cfg.step);
+  const th0 = ((cfg.startAngle || 0) * Math.PI) / 180;
+  const base = archimedes(center, cfg.pitch, rMax, cfg.step, th0);
   return base.map((S) => {
     const { t: vs, n } = spiralVec(S, center, a);
     const D = orientationAt(ori, w, h, S, cfg.lineOrientation, vs);
