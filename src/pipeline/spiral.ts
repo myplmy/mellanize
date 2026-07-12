@@ -10,16 +10,18 @@ export function archimedes(
   pitch: number,
   rMax: number,
   step: number,
+  startAngle = 0,
 ): Pt[] {
   const a = pitch / (2 * Math.PI);
   const pts: Pt[] = [];
   let theta = 0;
-  // r = a·θ 가 rMax 를 넘을 때까지.
+  // r = a·θ 가 rMax 를 넘을 때까지. 전체 나선을 startAngle 만큼 회전.
   while (a * theta <= rMax) {
     const r = a * theta;
+    const ang = theta + startAngle;
     pts.push({
-      x: center.x + r * Math.cos(theta),
-      y: center.y + r * Math.sin(theta),
+      x: center.x + r * Math.cos(ang),
+      y: center.y + r * Math.sin(ang),
     });
     // 호길이 ds ≈ r·dθ (큰 r) → dθ = step / max(r, a). 초반(작은 r)엔 a 로 하한.
     theta += step / Math.max(r, a);

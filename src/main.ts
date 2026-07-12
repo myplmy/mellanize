@@ -24,6 +24,8 @@ const preSel = $<HTMLSelectElement>('preprocess');
 const alphaSel = $<HTMLSelectElement>('alpha');
 const lineSel = $<HTMLSelectElement>('lineorient');
 const signSel = $<HTMLSelectElement>('signhandling');
+const toneSel = $<HTMLSelectElement>('tone');
+const coverageSel = $<HTMLSelectElement>('coverage');
 const autoregen = $<HTMLInputElement>('autoregen');
 const renderBtn = $<HTMLButtonElement>('render');
 const statusEl = $<HTMLSpanElement>('status');
@@ -36,6 +38,7 @@ const P: Record<string, number> = {
   sigma: 1, rho: 2, c: 6, diffIters: 6, diffKappa: 0.1,
   alongIters: 16, alongStrength: 2, alongReach: 4,
   contrast: 1, gamma: 1, warpStrength: 0.6, integrateAlphaCap: 0.8,
+  startAngle: 0, fixedTurns: 30,
 };
 
 interface Spec { key: string; label: string; min: number; max: number; step: number; advanced?: boolean; preproc?: boolean; }
@@ -43,6 +46,8 @@ const SPECS: Spec[] = [
   { key: 'pitch', label: 'pitch', min: 2, max: 40, step: 1 },
   { key: 'tMax', label: 'T_max', min: 1, max: 30, step: 0.5 },
   { key: 'lambda', label: 'λ', min: 0, max: 10, step: 0.1 },
+  { key: 'startAngle', label: 'start°', min: 0, max: 359, step: 1 },
+  { key: 'fixedTurns', label: 'turns N', min: 1, max: 200, step: 1, advanced: true },
   { key: 'tMin', label: 'T_min', min: 0, max: 5, step: 0.1, advanced: true },
   { key: 'sigma', label: 'σ deriv', min: 0, max: 4, step: 0.1, advanced: true },
   { key: 'rho', label: 'ρ tensor', min: 0, max: 6, step: 0.1, advanced: true },
@@ -115,6 +120,10 @@ function config(): PipelineConfig {
     lineOrientation: lineSel.value === 'across' ? 'across' : lineSel.value === 'switch' ? 'switch' : 'along',
     signHandling: signSel.value === 'spiralalign' ? 'spiralalign' : 'tensorblend',
     integrateAlphaCap: P.integrateAlphaCap,
+    startAngle: P.startAngle,
+    toneChannels: toneSel.value === 'thickness_plus_spacing' ? 'thickness_plus_spacing' : 'thickness_only',
+    coverageExtent: coverageSel.value === 'fixed_turns' ? 'fixed_turns' : 'diagonal',
+    fixedTurns: P.fixedTurns,
     center: centerOverride ?? undefined,
   };
 }
@@ -167,7 +176,7 @@ renderBtn.addEventListener('click', () => {
   renderBtn.textContent = 'Render';
   render();
 });
-for (const sel of [modeSel, warpSel, alphaSel, lineSel, signSel]) sel.addEventListener('change', scheduleRender);
+for (const sel of [modeSel, warpSel, alphaSel, lineSel, signSel, toneSel, coverageSel]) sel.addEventListener('change', scheduleRender);
 preSel.addEventListener('change', () => {
   dirtyPreprocess = true;
   scheduleRender();

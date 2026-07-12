@@ -14,7 +14,7 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 (Slice 7/10) | Slice 1~7 + #14 완료. **integrate/warp = 진짜 단일 연속 나선**(#14 phasefield가 못 준 부분 해결). 다음: #8 |
+| 3 | v2 알고리즘 구현 | 진행 중 (Slice 8/10) | Slice 1~8 + #14·#26·#27 완료. 남은 슬라이스: #9(SVG·성능)·#10(캘리브). 신규 UI/처리 이슈: #18~#23 |
 | 7 | phasefield 단일연속선(#14) | 부분 완료 | 세그먼트→정렬 폴리라인 chain+bridge: ~25k조각→~320 폴리라인(78× 연속성↑), seam guard+bridge, 커버리지 유지. **완전 단일곡선은 아님**(워프 등위선 위상). 진짜 단일 나선은 #7 integrate |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
@@ -23,6 +23,13 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-12 — Slice 8 (tone_channels·coverage_extent·λ cap) + #27 (startAngle)
+
+- **Slice 8(#8)**: `tone_channels`(thickness_only / thickness_plus_spacing — `tone.ts` D=1−I 주파수분해: dLow→간격[phasefield 워프항], dHigh→두께). `coverage_extent`(diagonal / fixed_turns=N·pitch; phasefield는 레벨 상한 N). **λ gap cap**: phasefield λ_eff=min(λ, 0.8·pitch)로 워프<0.4턴 → 단조성·비교차 보장.
+- **#27 startAngle(0~359°)**: archimedes 회전(skeleton·warp), phasefield θ 브랜치컷 회전, integrate 시드 방향 회전. 4모델 반영.
+- **검증(구조)**: build(19 modules). startAngle 0↔90 diff 25%, tone_only↔plus 33.5%, fixed_turns8 먼코너 0 vs diagonal 0.62, λ cap(λ10=λ7 동일) 활성. 시각은 사용자.
+- **미세**: tone_plus_spacing 간격 채널은 phasefield 워프에 dLow 주입한 근사(integrate/warp는 두께만). integrate startAngle은 시드 회전(근사).
 
 ### 2026-07-12 — #26 integrate 커버리지 분석·수정 + 신규 이슈(#27 start angle)
 
