@@ -14,7 +14,7 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 (Slice 6/10) | Slice 1~6 완료. 승인 순서상 **다음은 #14**(단일 연속선), 그 후 #7·#8·#9·#10 |
+| 3 | v2 알고리즘 구현 | 진행 중 (Slice 7/10) | Slice 1~7 + #14 완료. **integrate/warp = 진짜 단일 연속 나선**(#14 phasefield가 못 준 부분 해결). 다음: #8 |
 | 7 | phasefield 단일연속선(#14) | 부분 완료 | 세그먼트→정렬 폴리라인 chain+bridge: ~25k조각→~320 폴리라인(78× 연속성↑), seam guard+bridge, 커버리지 유지. **완전 단일곡선은 아님**(워프 등위선 위상). 진짜 단일 나선은 #7 integrate |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
@@ -23,6 +23,12 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-12 — Slice 7 (integrate·warp 벡터 모델)
+
+- **Slice 7(#7) 구현**: `vectorModels.ts` — integrate(V_final RK4 + α cap 0.85 단조 클램프 + 역행 방지 + 대각 rMax 종료), warp(기준 나선 샘플 + 변위 |δ|<pitch/2). `sign_handling`(tensorblend 이중각 보간+연속성 / spiralalign 벡터블렌드), `line_orientation`(along v₂ / across v₁ / switch β) config·UI 추가. deformationModel 스위치 4종(phasefield/integrate/warp/skeleton).
+- **검증(구조)**: build tsc(18 modules). **integrate 폴리라인 1개**(28,094점, 74ms, 코너 커버) = 진짜 단일 연속 나선. warp 1개(20,942점). sign_handling diff 30.6%, line_orientation diff 52.2% → 스위치 구별. 무한루프 없이 종료. 시각 판단은 사용자.
+- **의의**: #14가 못 준 "단 하나의 나선"을 integrate가 태생적으로 제공.
 
 ### 2026-07-12 — #14 phasefield 연속성 개선 + 신규 이슈 5건
 

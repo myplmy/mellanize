@@ -15,6 +15,8 @@
         <label>모드
           <select id="mode">
             <option value="phasefield" selected>phasefield</option>
+            <option value="integrate">integrate (단일 유선)</option>
+            <option value="warp">warp (변위)</option>
             <option value="skeleton">skeleton (기본 나선)</option>
           </select>
         </label>
@@ -36,6 +38,19 @@
             <option value="grad" selected>grad |∇I|</option>
             <option value="meanH">meanH |H|</option>
             <option value="mixed">mixed</option>
+          </select>
+        </label>
+        <label>선방향
+          <select id="lineorient" title="integrate·warp 전용">
+            <option value="along" selected>along (v₂)</option>
+            <option value="across">across (v₁)</option>
+            <option value="switch">switch (β)</option>
+          </select>
+        </label>
+        <label>부호
+          <select id="signhandling" title="integrate·warp 전용">
+            <option value="tensorblend" selected>tensorblend</option>
+            <option value="spiralalign">spiralalign</option>
           </select>
         </label>
         <label><input type="checkbox" id="autoregen" checked /> 자동 재생성</label>

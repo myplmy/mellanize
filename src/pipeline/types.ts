@@ -20,14 +20,18 @@ export interface StrokePoint {
 /** 연속 폴리라인 (순서 있는 정점열). 렌더 단위. */
 export type Polyline = StrokePoint[];
 
-/** deformation_model (docs/claude_mellan_pipeline_v2.md §5). integrate·warp: Slice 7. */
-export type DeformationModel = 'skeleton' | 'phasefield';
+/** deformation_model (docs/claude_mellan_pipeline_v2.md §5). */
+export type DeformationModel = 'skeleton' | 'phasefield' | 'integrate' | 'warp';
 /** alpha_source (§2). */
 export type AlphaSource = 'grad' | 'meanH' | 'mixed';
 /** phasefield warp_mode (§5.A). */
 export type WarpMode = 'tone_only' | 'anisotropic';
 /** 전처리 모드 (§1). meanH·mixed 대비 정규화 방식. */
 export type PreprocessMode = 'luma_clahe' | 'luma_only' | 'user_adjust';
+/** 선 방향 (§3). integrate·warp 전용. */
+export type LineOrientation = 'along' | 'across' | 'switch';
+/** 부호 처리 (§4). integrate·warp 전용. */
+export type SignHandling = 'tensorblend' | 'spiralalign';
 
 export interface PipelineConfig {
   deformationModel: DeformationModel;
@@ -65,4 +69,10 @@ export interface PipelineConfig {
   contrast: number;
   /** user_adjust 감마 (1=원본). */
   gamma: number;
+  /** warp 모델 변위 강도 (μ). |δ| < pitch/2 로 클램프됨. */
+  warpStrength: number;
+  /** integrate·warp: 선 방향. */
+  lineOrientation: LineOrientation;
+  /** integrate·warp: 부호 처리. */
+  signHandling: SignHandling;
 }
