@@ -24,6 +24,12 @@
 
 ## 작업 로그
 
+### 2026-07-12 — 세션 핸드오프 + 상태 동기화
+
+- **핸드오프 메모**: [`.claude/handoff/session_20260712_core_pipeline_1to8.md`](../.claude/handoff/session_20260712_core_pipeline_1to8.md) (세션 맥락·착수 가이드; 정본 상태는 본 파일).
+- **동기화 점검**: 해소 이슈 #1~8·#14·#26·#27 전부 해소 코멘트 보유(누락 없음). 본 DEV_REGISTRY 최신. 추가 doc 동기화 불필요.
+- **코어 파이프라인(Slice 1~8 + #14·#26·#27) 완료·배포**. 남은 슬라이스 #9·#10, 신규 UI/처리/분석 이슈 #18~#23. 다음 권장: #18.
+
 ### 2026-07-12 — Slice 8 (tone_channels·coverage_extent·λ cap) + #27 (startAngle)
 
 - **Slice 8(#8)**: `tone_channels`(thickness_only / thickness_plus_spacing — `tone.ts` D=1−I 주파수분해: dLow→간격[phasefield 워프항], dHigh→두께). `coverage_extent`(diagonal / fixed_turns=N·pitch; phasefield는 레벨 상한 N). **λ gap cap**: phasefield λ_eff=min(λ, 0.8·pitch)로 워프<0.4턴 → 단조성·비교차 보장.
