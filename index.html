@@ -74,6 +74,13 @@
           </select>
         </label>
         <button id="download" type="button" title="현재 출력 형식으로 저장 (canvas=PNG / SVG=벡터)">다운로드</button>
+        <label>원본해상도
+          <select id="origMethod" title="(b) 좌표 스케일업: 빠름·분석은 다운샘플 / (a) 재처리: 원본서 재분석·무거움">
+            <option value="scale" selected>좌표 스케일업 (b)</option>
+            <option value="reprocess">재처리 (a)</option>
+          </select>
+        </label>
+        <button id="origExport" type="button" title="원본 해상도로 변환 결과 내보내기 (출력 형식 따름)">원본 해상도 내보내기</button>
       </div>
 
       <div class="controls" id="viewbar">

@@ -31,6 +31,8 @@ const autoregen = $<HTMLInputElement>('autoregen');
 const renderBtn = $<HTMLButtonElement>('render');
 const outputSel = $<HTMLSelectElement>('output');
 const downloadBtn = $<HTMLButtonElement>('download');
+const origMethodSel = $<HTMLSelectElement>('origMethod');
+const origExportBtn = $<HTMLButtonElement>('origExport');
 const statusEl = $<HTMLSpanElement>('status');
 const canvas = $<HTMLCanvasElement>('canvas');
 const basicBox = $<HTMLDivElement>('basic');
@@ -118,6 +120,11 @@ const panelTokens = [0, 0, 0, 0];
 let lastPolys: Polyline[] = [];
 let lastW = 0;
 let lastH = 0;
+
+// #23: 원본 해상도 내보내기. 원본 크기 + 재처리(a)용 원본 파일 보관.
+let currentFile: File | null = null;
+let origW = 0;
+let origH = 0;
 
 // 스냅샷 로드 시 슬라이더/수치 입력을 P 값으로 되돌리기 위한 참조.
 const paramInputs = new Map<string, { range: HTMLInputElement; num: HTMLInputElement }>();
@@ -276,11 +283,15 @@ function computePolylines(gray: GrayImage, cfg: PipelineConfig): Promise<Polylin
   });
 }
 
-async function loadImage(file: File): Promise<{ gray: GrayImage; color: HTMLCanvasElement }> {
+async function loadImage(
+  file: File,
+): Promise<{ gray: GrayImage; color: HTMLCanvasElement; origW: number; origH: number }> {
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, DOWNSAMPLE_MAX / Math.max(bitmap.width, bitmap.height));
-  const w = Math.max(1, Math.round(bitmap.width * scale));
-  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const ow = bitmap.width;
+  const oh = bitmap.height;
+  const scale = Math.min(1, DOWNSAMPLE_MAX / Math.max(ow, oh));
+  const w = Math.max(1, Math.round(ow * scale));
+  const h = Math.max(1, Math.round(oh * scale));
   const tmp = document.createElement('canvas');
   tmp.width = w;
   tmp.height = h;
@@ -289,7 +300,22 @@ async function loadImage(file: File): Promise<{ gray: GrayImage; color: HTMLCanv
   tctx.drawImage(bitmap, 0, 0, w, h);
   bitmap.close();
   // tmp = 원본 컬러(작업 해상도) — 비교 뷰 원본으로 재사용.
-  return { gray: toGray(tctx.getImageData(0, 0, w, h)), color: tmp };
+  return { gray: toGray(tctx.getImageData(0, 0, w, h)), color: tmp, origW: ow, origH: oh };
+}
+
+/** 원본 해상도 재처리(a)용: 파일을 풀 해상도로 재디코드 → 그레이. */
+async function decodeFullGray(file: File): Promise<{ gray: GrayImage; w: number; h: number }> {
+  const bmp = await createImageBitmap(file);
+  const w = bmp.width;
+  const h = bmp.height;
+  const tmp = document.createElement('canvas');
+  tmp.width = w;
+  tmp.height = h;
+  const cx = tmp.getContext('2d');
+  if (!cx) throw new Error('2D 컨텍스트를 만들 수 없습니다.');
+  cx.drawImage(bmp, 0, 0, w, h);
+  bmp.close();
+  return { gray: toGray(cx.getImageData(0, 0, w, h)), w, h };
 }
 
 /** procGray(Float [0,1]) → 그레이스케일 캔버스. 비교 뷰 '그레이 원본'. */
@@ -508,6 +534,61 @@ downloadBtn.addEventListener('click', () => {
   a.download = 'mellanize.png';
   a.click();
 });
+
+// #23: 원본 해상도 내보내기. (b) 좌표 스케일업 = 작업 해상도서 분석 후 좌표·두께 ×배율(빠름).
+//      (a) 재처리 = 원본 해상도로 파이프라인 재실행(워커, 무거움). 출력 형식은 output_target 따름.
+async function exportOriginal(): Promise<void> {
+  if (!rawGray || origW === 0) return;
+  origExportBtn.disabled = true;
+  try {
+    let polys: Polyline[];
+    let ow: number;
+    let oh: number;
+    if (origMethodSel.value === 'reprocess' && currentFile) {
+      statusEl.textContent = '원본 해상도 재처리 중… (무거울 수 있음)';
+      const full = await decodeFullGray(currentFile);
+      const pg = preprocessGray(full.gray, preprocessMode(), P.contrast, P.gamma);
+      const f = full.w / (procGray?.width || full.w);
+      const center = centerOverride ? { x: centerOverride.x * f, y: centerOverride.y * f } : undefined;
+      polys = await computePolylines(pg, configFrom(readLive(), center));
+      ow = full.w;
+      oh = full.h;
+    } else {
+      statusEl.textContent = '원본 해상도 좌표 스케일업 중…';
+      if (dirtyPreprocess || !procGray) {
+        procGray = preprocessGray(rawGray, preprocessMode(), P.contrast, P.gamma);
+        dirtyPreprocess = false;
+        grayCanvas = grayToCanvas(procGray);
+      }
+      const working = await computePolylines(procGray, config());
+      const f = origW / procGray.width;
+      polys = working.map((poly) => poly.map((p) => ({ x: p.x * f, y: p.y * f, thickness: p.thickness * f })));
+      ow = origW;
+      oh = origH;
+    }
+    if (outputSel.value === 'svg') {
+      triggerDownload(
+        new Blob([svgFromPolylines(polys, ow, oh)], { type: 'image/svg+xml' }),
+        'mellanize-original.svg',
+      );
+    } else {
+      const cv = document.createElement('canvas');
+      cv.width = ow;
+      cv.height = oh;
+      const cx = cv.getContext('2d');
+      if (cx) renderPolylines(cx, polys);
+      const a = document.createElement('a');
+      a.href = cv.toDataURL('image/png');
+      a.download = 'mellanize-original.png';
+      a.click();
+    }
+    const m = origMethodSel.value === 'reprocess' ? '재처리(a)' : '좌표 스케일업(b)';
+    statusEl.textContent = `원본 해상도 내보내기 완료 · ${ow}×${oh} · ${m} · ${outputSel.value}`;
+  } finally {
+    origExportBtn.disabled = false;
+  }
+}
+origExportBtn.addEventListener('click', () => void exportOriginal());
 for (const sel of [modeSel, warpSel, alphaSel, lineSel, signSel, toneSel, coverageSel])
   sel.addEventListener('change', () => {
     refreshGroups();
@@ -594,6 +675,9 @@ fileInput.addEventListener('change', async () => {
     const loaded = await loadImage(file);
     rawGray = loaded.gray;
     colorCanvas = loaded.color;
+    currentFile = file;
+    origW = loaded.origW;
+    origH = loaded.origH;
     dirtyPreprocess = true;
     centerOverride = null;
     if (viewMode() === 'quad') enterQuad();
