@@ -14,7 +14,7 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 | 코어 Slice 1~8 + #14·#26·#27 완료. UI 이슈 #18·#21·#22·#9·#23(원본해상도) 완료. 남은: #19(주파수)·#20(IQA)·#10(캘리브) |
+| 3 | v2 알고리즘 구현 | 진행 중 | 코어 Slice 1~8 + #14·#26·#27 완료. UI 이슈 #18·#21·#22·#9·#23·#20(IQA) 완료. 남은: #19(주파수, needs-triage)·#10(캘리브) |
 | 7 | phasefield 단일연속선(#14) | 부분 완료 | 세그먼트→정렬 폴리라인 chain+bridge: ~25k조각→~320 폴리라인(78× 연속성↑), seam guard+bridge, 커버리지 유지. **완전 단일곡선은 아님**(워프 등위선 위상). 진짜 단일 나선은 #7 integrate |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
@@ -23,6 +23,12 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-18 — #20 (IQA: MSE/PSNR/SSIM)
+
+- **#20 구현**: `pipeline/iqa.ts` `computeIqa(ref,test,w,h)` — MSE(전역), PSNR(dB, 범위1), SSIM(8×8 비겹침 블록 평균, c1=.01²·c2=.03²). `updateIqa`가 그레이 원본(`procGray.data`) vs 변환 결과(`canvasGray(transformCanvas)` Rec.709 luma)를 동일 작업 해상도로 비교 → `#iqa`에 표시, 단일/비교 뷰 render마다 갱신(quad 에선 clear).
+- **검증(구조)**: build(21 modules). 로드 시 MSE 0.21·PSNR 6.7dB·SSIM 0.01 표시(유효 범위 mse∈[0,1]·psnr>0·ssim∈[-1,1]), pitch 변경 시 값 갱신, quad 전환 시 clear·단일/비교 복귀 시 재표시. 콘솔 에러 0.
+- **주의(이슈 명시)**: 사진↔선화 구조 차이로 SSIM 절대값 해석 주의 → 옵션 간 상대 비교·튜닝 지표로 활용. 값 해석·튜닝은 사용자.
 
 ### 2026-07-18 — #23 (원본 해상도 변환·다운로드)
 

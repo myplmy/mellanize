@@ -39,5 +39,6 @@ button { padding: .35rem .9rem; cursor: pointer; }
 .adv summary { cursor: pointer; opacity: .8; font-size: .9rem; }
 .hint { margin: .25rem 0; opacity: .6; font-size: .8rem; }
 .status { opacity: .7; font-size: .9rem; }
+.iqa { display: block; margin-top: .2rem; font-variant-numeric: tabular-nums; }
 
 canvas { display: block; margin-top: .5rem; max-width: 100%; height: auto; border: 1px solid rgba(128,128,128,.4); background: #fff; cursor: crosshair; }
