@@ -16,6 +16,7 @@ export { preprocessGray } from './preprocess';
 export { renderPolylines } from './render';
 export { svgFromPolylines } from './svg';
 export { computeIqa } from './iqa';
+export { applyFreqFilter, type FreqFilter } from './freqFilter';
 
 /** 커버리지 범위 rMax (§8). diagonal: 최원거리 코너 / fixed_turns: N·pitch. */
 function computeRMax(gray: GrayImage, c: Pt, cfg: PipelineConfig): number {

@@ -5,10 +5,12 @@ import {
   renderPolylines,
   svgFromPolylines,
   computeIqa,
+  applyFreqFilter,
   type GrayImage,
   type PipelineConfig,
   type Pt,
   type Polyline,
+  type FreqFilter,
 } from './pipeline';
 
 const DOWNSAMPLE_MAX = 1024;
@@ -28,6 +30,8 @@ const lineSel = $<HTMLSelectElement>('lineorient');
 const signSel = $<HTMLSelectElement>('signhandling');
 const toneSel = $<HTMLSelectElement>('tone');
 const coverageSel = $<HTMLSelectElement>('coverage');
+const inFilterSel = $<HTMLSelectElement>('inFilter');
+const outFilterSel = $<HTMLSelectElement>('outFilter');
 const autoregen = $<HTMLInputElement>('autoregen');
 const renderBtn = $<HTMLButtonElement>('render');
 const outputSel = $<HTMLSelectElement>('output');
@@ -56,10 +60,11 @@ const P: Record<string, number> = {
   alongIters: 16, alongStrength: 2, alongReach: 4,
   contrast: 1, gamma: 1, warpStrength: 0.6, integrateAlphaCap: 0.8,
   startAngle: 0, fixedTurns: 30,
+  inSigma1: 2, inSigma2: 6, outSigma1: 2, outSigma2: 6,
 };
 
 /** 고급 패널 섹션 = 파라미터가 영향을 주는 모드/단계. #18 그룹화. */
-type GroupId = 'common' | 'alpha' | 'phasefield' | 'aniso' | 'integrate' | 'warp' | 'coverage' | 'preproc';
+type GroupId = 'common' | 'alpha' | 'phasefield' | 'aniso' | 'integrate' | 'warp' | 'coverage' | 'preproc' | 'filter';
 interface Spec { key: string; label: string; min: number; max: number; step: number; advanced?: boolean; preproc?: boolean; group: GroupId; tip: string; }
 const SPECS: Spec[] = [
   { key: 'pitch', label: 'pitch', min: 2, max: 40, step: 1, group: 'common', tip: '인접 나선 턴 사이 반경 간격(px). 작을수록 선이 촘촘 · 전 모드' },
@@ -80,6 +85,10 @@ const SPECS: Spec[] = [
   { key: 'integrateAlphaCap', label: 'integ αcap', min: 0.3, max: 0.98, step: 0.02, advanced: true, group: 'integrate', tip: 'integrate α 상한(텐서 최대 비중). 낮을수록 나선 복원·커버리지↑ · integrate' },
   { key: 'contrast', label: 'contrast', min: 0, max: 3, step: 0.05, advanced: true, preproc: true, group: 'preproc', tip: 'user_adjust 대비(1=원본) · 전처리' },
   { key: 'gamma', label: 'gamma', min: 0.2, max: 3, step: 0.05, advanced: true, preproc: true, group: 'preproc', tip: 'user_adjust 감마(1=원본) · 전처리' },
+  { key: 'inSigma1', label: 'in σ/σlo', min: 0.5, max: 20, step: 0.5, advanced: true, preproc: true, group: 'filter', tip: '입력필터 cutoff σ(high/low) 또는 밴드 하한 σ_lo. 클수록 저주파 컷 · 입력필터(a)' },
+  { key: 'inSigma2', label: 'in σhi', min: 0.5, max: 40, step: 0.5, advanced: true, preproc: true, group: 'filter', tip: '입력필터 밴드패스 상한 σ_hi(σ_lo<σ_hi) · 입력필터(a)' },
+  { key: 'outSigma1', label: 'out σ/σlo', min: 0.5, max: 20, step: 0.5, advanced: true, group: 'filter', tip: '분석필터 cutoff σ(high/low) 또는 밴드 하한 σ_lo · 분석필터(b)' },
+  { key: 'outSigma2', label: 'out σhi', min: 0.5, max: 40, step: 0.5, advanced: true, group: 'filter', tip: '분석필터 밴드패스 상한 σ_hi · 분석필터(b)' },
 ];
 
 interface Group { id: GroupId; label: string; active: () => boolean; }
@@ -92,6 +101,7 @@ const ADV_GROUPS: Group[] = [
   { id: 'warp', label: 'warp · 변위', active: () => modeSel.value === 'warp' },
   { id: 'coverage', label: '커버리지 · 고정 턴수', active: () => coverageSel.value === 'fixed_turns' },
   { id: 'preproc', label: '전처리 · user_adjust', active: () => preSel.value === 'user_adjust' },
+  { id: 'filter', label: '주파수 필터 · 입력(a)/분석(b)', active: () => inFilterSel.value !== 'none' || outFilterSel.value !== 'none' },
 ];
 
 let rawGray: GrayImage | null = null; // Rec.709 luma (전처리 전)
@@ -208,6 +218,7 @@ interface CtrlState {
   signhandling: string;
   tone: string;
   coverage: string;
+  inFilter: string; // 입력 주파수 필터(a) — 변환에 영향하므로 패널별 스냅샷 포함
   params: Record<string, number>;
   center: Pt | null;
 }
@@ -216,6 +227,7 @@ function readLive(): CtrlState {
   return {
     mode: modeSel.value, warp: warpSel.value, preprocess: preSel.value, alpha: alphaSel.value,
     lineorient: lineSel.value, signhandling: signSel.value, tone: toneSel.value, coverage: coverageSel.value,
+    inFilter: inFilterSel.value,
     params: { ...P },
     center: centerOverride,
   };
@@ -225,6 +237,7 @@ function readLive(): CtrlState {
 function applyState(s: CtrlState): void {
   modeSel.value = s.mode; warpSel.value = s.warp; preSel.value = s.preprocess; alphaSel.value = s.alpha;
   lineSel.value = s.lineorient; signSel.value = s.signhandling; toneSel.value = s.tone; coverageSel.value = s.coverage;
+  inFilterSel.value = s.inFilter;
   Object.assign(P, s.params);
   centerOverride = s.center;
   for (const [key, io] of paramInputs) {
@@ -397,7 +410,8 @@ async function renderPanel(i: number): Promise<void> {
   const pm = panel.snap.preprocess === 'luma_only' || panel.snap.preprocess === 'user_adjust'
     ? panel.snap.preprocess
     : 'luma_clahe';
-  const pg = preprocessGray(small, pm, panel.snap.params.contrast, panel.snap.params.gamma);
+  const pg0 = preprocessGray(small, pm, panel.snap.params.contrast, panel.snap.params.gamma);
+  const pg = filteredGray(pg0, asFreq(panel.snap.inFilter), panel.snap.params.inSigma1, panel.snap.params.inSigma2);
   const center = panel.snap.center
     ? { x: panel.snap.center.x * scale, y: panel.snap.center.y * scale }
     : undefined;
@@ -450,7 +464,13 @@ function paint(): void {
   canvas.width = W;
   canvas.height = H;
   if (viewMode() === 'single') {
-    ctx.drawImage(transformCanvas, 0, 0);
+    if (outFilterSel.value !== 'none') {
+      // 분석필터(b): 변환 결과에 주파수 필터를 적용해 표시(변환·다운로드엔 미영향).
+      const f = applyFreqFilter(canvasGray(transformCanvas), W, H, asFreq(outFilterSel.value), P.outSigma1, P.outSigma2);
+      drawGrayToCtx(ctx, f, W, H);
+    } else {
+      ctx.drawImage(transformCanvas, 0, 0);
+    }
     return;
   }
   // 비교: 변환 전체 그린 뒤 원본 영역만 클립 합성 → 절취선 표시.
@@ -489,6 +509,30 @@ function posToSplit(e: PointerEvent): number {
   return Math.max(0, Math.min(1, t));
 }
 
+function asFreq(v: string): FreqFilter {
+  return v === 'lowpass' || v === 'highpass' || v === 'bandpass' ? v : 'none';
+}
+
+/** 입력 주파수 필터(a) 적용된 그레이. none 이면 원본 그대로. */
+function filteredGray(g: GrayImage, type: FreqFilter, s1: number, s2: number): GrayImage {
+  if (type === 'none') return g;
+  return { width: g.width, height: g.height, data: applyFreqFilter(g.data, g.width, g.height, type, s1, s2) };
+}
+
+/** Float [0,1] 그레이 → 표시 캔버스(분석필터 b 표시용). */
+function drawGrayToCtx(ctx: CanvasRenderingContext2D, gray: Float32Array, w: number, h: number): void {
+  const img = ctx.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) {
+    const v = Math.max(0, Math.min(255, Math.round(gray[i] * 255)));
+    const j = i * 4;
+    img.data[j] = v;
+    img.data[j + 1] = v;
+    img.data[j + 2] = v;
+    img.data[j + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
 async function render(): Promise<void> {
   if (!rawGray) return;
   // 4분할: 라이브 컨트롤을 활성 패널 스냅샷에 반영하고 그 패널만 재렌더(나머지 유지).
@@ -502,9 +546,10 @@ async function render(): Promise<void> {
     return;
   }
   if (dirtyPreprocess || !procGray) {
-    procGray = preprocessGray(rawGray, preprocessMode(), P.contrast, P.gamma);
+    const pp = preprocessGray(rawGray, preprocessMode(), P.contrast, P.gamma);
+    procGray = filteredGray(pp, asFreq(inFilterSel.value), P.inSigma1, P.inSigma2); // 입력필터(a)
     dirtyPreprocess = false;
-    grayCanvas = grayToCanvas(procGray); // 전처리 바뀔 때만 그레이 원본 재생성
+    grayCanvas = grayToCanvas(procGray); // 전처리/필터 바뀔 때만 그레이 원본 재생성
   }
   const tctx = transformCanvas.getContext('2d');
   if (!tctx) return;
@@ -628,6 +673,16 @@ preSel.addEventListener('change', () => {
   dirtyPreprocess = true;
   refreshGroups();
   scheduleRender();
+});
+// 입력필터(a): procGray 를 바꾸므로 dirtyPreprocess. 분석필터(b): 표시만 → paint(단일 뷰).
+inFilterSel.addEventListener('change', () => {
+  dirtyPreprocess = true;
+  refreshGroups();
+  scheduleRender();
+});
+outFilterSel.addEventListener('change', () => {
+  refreshGroups();
+  if (viewMode() === 'single') paint();
 });
 
 // 뷰 전환: compare/quad 옵션·컨테이너 토글. quad 진입 시 패널 초기화, 그 외엔 전체 렌더.

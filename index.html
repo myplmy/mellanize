@@ -33,6 +33,14 @@
             <option value="user_adjust">user adjust</option>
           </select>
         </label>
+        <label>입력필터
+          <select id="inFilter" title="(a) 파이프라인 입력 그레이에 주파수 필터: high=미세디테일/에지, low=넓은 톤 (변환에 영향)">
+            <option value="none" selected>없음</option>
+            <option value="lowpass">로우패스</option>
+            <option value="highpass">하이패스</option>
+            <option value="bandpass">밴드패스</option>
+          </select>
+        </label>
         <label>α
           <select id="alpha">
             <option value="grad" selected>grad |∇I|</option>
@@ -71,6 +79,14 @@
           <select id="output" title="canvas: 래스터 미리보기·PNG / SVG: 오프셋 아웃라인 폴리곤 벡터">
             <option value="canvas" selected>canvas</option>
             <option value="svg">SVG</option>
+          </select>
+        </label>
+        <label>분석필터
+          <select id="outFilter" title="(b) 변환 결과에 주파수 필터를 적용해 표시(분석용, 단일 뷰). 변환·다운로드엔 영향 없음">
+            <option value="none" selected>없음</option>
+            <option value="lowpass">로우패스</option>
+            <option value="highpass">하이패스</option>
+            <option value="bandpass">밴드패스</option>
           </select>
         </label>
         <button id="download" type="button" title="현재 출력 형식으로 저장 (canvas=PNG / SVG=벡터)">다운로드</button>
