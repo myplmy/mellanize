@@ -2,11 +2,12 @@ import './style.css';
 import {
   toGray,
   preprocessGray,
-  buildPolylines,
   renderPolylines,
+  svgFromPolylines,
   type GrayImage,
   type PipelineConfig,
   type Pt,
+  type Polyline,
 } from './pipeline';
 
 const DOWNSAMPLE_MAX = 1024;
@@ -28,6 +29,8 @@ const toneSel = $<HTMLSelectElement>('tone');
 const coverageSel = $<HTMLSelectElement>('coverage');
 const autoregen = $<HTMLInputElement>('autoregen');
 const renderBtn = $<HTMLButtonElement>('render');
+const outputSel = $<HTMLSelectElement>('output');
+const downloadBtn = $<HTMLButtonElement>('download');
 const statusEl = $<HTMLSpanElement>('status');
 const canvas = $<HTMLCanvasElement>('canvas');
 const basicBox = $<HTMLDivElement>('basic');
@@ -108,6 +111,13 @@ interface Panel {
 let panels: Panel[] = [];
 let activePanel = 0;
 let quadRes = 512; // 패널 축소 렌더 장변 px (슬라이더 노출)
+
+// #9: 워커 렌더 최신-우선 토큰 + 다운로드용 최근 폴리라인.
+let singleToken = 0;
+const panelTokens = [0, 0, 0, 0];
+let lastPolys: Polyline[] = [];
+let lastW = 0;
+let lastH = 0;
 
 // 스냅샷 로드 시 슬라이더/수치 입력을 P 값으로 되돌리기 위한 참조.
 const paramInputs = new Map<string, { range: HTMLInputElement; num: HTMLInputElement }>();
@@ -247,6 +257,25 @@ function config(): PipelineConfig {
   return configFrom(readLive());
 }
 
+// 파이프라인 워커(#9): buildPolylines 오프로드 → UI 논블로킹. 호출측이 토큰으로 최신만 반영.
+const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+let reqId = 0;
+const pending = new Map<number, (polys: Polyline[]) => void>();
+worker.onmessage = (e: MessageEvent<{ id: number; polys: Polyline[] }>): void => {
+  const cb = pending.get(e.data.id);
+  if (cb) {
+    pending.delete(e.data.id);
+    cb(e.data.polys);
+  }
+};
+function computePolylines(gray: GrayImage, cfg: PipelineConfig): Promise<Polyline[]> {
+  return new Promise((resolve) => {
+    const id = ++reqId;
+    pending.set(id, resolve);
+    worker.postMessage({ id, gray, cfg });
+  });
+}
+
 async function loadImage(file: File): Promise<{ gray: GrayImage; color: HTMLCanvasElement }> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, DOWNSAMPLE_MAX / Math.max(bitmap.width, bitmap.height));
@@ -306,10 +335,11 @@ function downsampleGray(g: GrayImage, maxDim: number): { gray: GrayImage; scale:
   return { gray: { width: w, height: h, data }, scale };
 }
 
-/** 한 패널을 스냅샷 설정으로 축소 렌더(전처리도 스냅샷 기준). 활성 패널만 자주 호출됨. */
-function renderPanel(i: number): void {
+/** 한 패널을 스냅샷 설정으로 축소 렌더(전처리도 스냅샷 기준, 워커 오프로드). 패널별 토큰으로 최신만. */
+async function renderPanel(i: number): Promise<void> {
   if (!rawGray) return;
   const panel = panels[i];
+  const token = ++panelTokens[i];
   const { gray: small, scale } = downsampleGray(rawGray, quadRes);
   const pm = panel.snap.preprocess === 'luma_only' || panel.snap.preprocess === 'user_adjust'
     ? panel.snap.preprocess
@@ -318,15 +348,21 @@ function renderPanel(i: number): void {
   const center = panel.snap.center
     ? { x: panel.snap.center.x * scale, y: panel.snap.center.y * scale }
     : undefined;
-  const polys = buildPolylines(pg, configFrom(panel.snap, center));
+  const polys = await computePolylines(pg, configFrom(panel.snap, center));
+  if (token !== panelTokens[i]) return; // 최신만 반영
   panel.canvas.width = pg.width;
   panel.canvas.height = pg.height;
   const ctx = panel.canvas.getContext('2d');
   if (ctx) renderPolylines(ctx, polys);
+  if (i === activePanel) {
+    lastPolys = polys;
+    lastW = pg.width;
+    lastH = pg.height;
+  }
 }
 
 function renderAllPanels(): void {
-  for (let i = 0; i < panels.length; i++) renderPanel(i);
+  for (let i = 0; i < panels.length; i++) void renderPanel(i);
 }
 
 function highlightActive(): void {
@@ -399,13 +435,13 @@ function posToSplit(e: PointerEvent): number {
   return Math.max(0, Math.min(1, t));
 }
 
-function render(): void {
+async function render(): Promise<void> {
   if (!rawGray) return;
   // 4분할: 라이브 컨트롤을 활성 패널 스냅샷에 반영하고 그 패널만 재렌더(나머지 유지).
   if (viewMode() === 'quad') {
     if (panels.length) {
       panels[activePanel].snap = readLive();
-      renderPanel(activePanel);
+      void renderPanel(activePanel);
       quadStatus();
     }
     return;
@@ -415,19 +451,24 @@ function render(): void {
     dirtyPreprocess = false;
     grayCanvas = grayToCanvas(procGray); // 전처리 바뀔 때만 그레이 원본 재생성
   }
-  transformCanvas.width = procGray.width;
-  transformCanvas.height = procGray.height;
   const tctx = transformCanvas.getContext('2d');
   if (!tctx) return;
+  const token = ++singleToken;
   const t0 = performance.now();
-  const polys = buildPolylines(procGray, config());
-  renderPolylines(tctx, polys);
+  const polys = await computePolylines(procGray, config()); // 워커 오프로드
+  if (token !== singleToken || !procGray) return; // 그 사이 새 요청이 오면 폐기(최신-우선)
   const ms = Math.round(performance.now() - t0);
+  transformCanvas.width = procGray.width;
+  transformCanvas.height = procGray.height;
+  renderPolylines(tctx, polys);
   transformReady = true;
+  lastPolys = polys;
+  lastW = procGray.width;
+  lastH = procGray.height;
   paint();
   const pts = polys.reduce((n, p) => n + p.length, 0);
   const ctr = centerOverride ? ` · center(${centerOverride.x | 0},${centerOverride.y | 0})` : '';
-  statusEl.textContent = `${modeSel.value}/${warpSel.value}/${preSel.value} · ${procGray.width}×${procGray.height} · 폴리라인 ${polys.length.toLocaleString()}·점 ${pts.toLocaleString()} · ${ms}ms${ctr}`;
+  statusEl.textContent = `${modeSel.value}/${warpSel.value}/${preSel.value} · ${outputSel.value} · ${procGray.width}×${procGray.height} · 폴리라인 ${polys.length.toLocaleString()}·점 ${pts.toLocaleString()} · ${ms}ms${ctr}`;
 }
 
 let timer: number | undefined;
@@ -442,7 +483,30 @@ function scheduleRender(): void {
 
 renderBtn.addEventListener('click', () => {
   renderBtn.textContent = 'Render';
-  render();
+  void render();
+});
+
+// #9 다운로드: output=svg → 벡터(오프셋 아웃라인), output=canvas → PNG(현재 미리보기/활성 패널).
+function triggerDownload(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+downloadBtn.addEventListener('click', () => {
+  if (outputSel.value === 'svg') {
+    if (lastPolys.length === 0) return;
+    const svg = svgFromPolylines(lastPolys, lastW, lastH);
+    triggerDownload(new Blob([svg], { type: 'image/svg+xml' }), 'mellanize.svg');
+    return;
+  }
+  const src = viewMode() === 'quad' && panels.length ? panels[activePanel].canvas : transformCanvas;
+  const a = document.createElement('a');
+  a.href = src.toDataURL('image/png'); // 동기 — toBlob 미지원 환경에서도 견고
+  a.download = 'mellanize.png';
+  a.click();
 });
 for (const sel of [modeSel, warpSel, alphaSel, lineSel, signSel, toneSel, coverageSel])
   sel.addEventListener('change', () => {
