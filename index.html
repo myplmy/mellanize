@@ -69,6 +69,35 @@
         <button id="render" type="button">Render</button>
       </div>
 
+      <div class="controls" id="viewbar">
+        <label>보기
+          <select id="viewmode">
+            <option value="single" selected>단일</option>
+            <option value="compare">비교 (절취선)</option>
+          </select>
+        </label>
+        <span id="compareopts" hidden>
+          <label>원본
+            <select id="cmpOriginal">
+              <option value="color" selected>컬러</option>
+              <option value="gray">그레이 (전처리 luma)</option>
+            </select>
+          </label>
+          <label>분할
+            <select id="cmpSplit">
+              <option value="vertical" selected>세로 (좌 원본/우 변환)</option>
+              <option value="horizontal">가로 (상 원본/하 변환)</option>
+            </select>
+          </label>
+          <label>절취선
+            <select id="cmpHandle">
+              <option value="drag" selected>드래그</option>
+              <option value="follow">커서 추종</option>
+            </select>
+          </label>
+        </span>
+      </div>
+
       <div id="basic" class="params"></div>
       <details class="adv">
         <summary>고급 설정 (엔진 수치)</summary>

@@ -32,6 +32,11 @@ const statusEl = $<HTMLSpanElement>('status');
 const canvas = $<HTMLCanvasElement>('canvas');
 const basicBox = $<HTMLDivElement>('basic');
 const advBox = $<HTMLDivElement>('advanced');
+const viewModeSel = $<HTMLSelectElement>('viewmode');
+const compareOpts = $<HTMLSpanElement>('compareopts');
+const cmpOriginalSel = $<HTMLSelectElement>('cmpOriginal');
+const cmpSplitSel = $<HTMLSelectElement>('cmpSplit');
+const cmpHandleSel = $<HTMLSelectElement>('cmpHandle');
 
 const P: Record<string, number> = {
   pitch: 8, tMin: 0.4, tMax: 6, lambda: 4,
@@ -81,6 +86,14 @@ let rawGray: GrayImage | null = null; // Rec.709 luma (전처리 전)
 let procGray: GrayImage | null = null; // 전처리 적용본 (파이프라인 입력)
 let dirtyPreprocess = true;
 let centerOverride: Pt | null = null;
+
+// 비교 뷰(#21): 변환 결과·원본을 오프스크린 캔버스에 캐시하고 합성만 재수행(절취선 이동 시 변환 재계산 없음).
+const transformCanvas = document.createElement('canvas'); // 나선 변환 결과(엔그레이빙)
+let colorCanvas: HTMLCanvasElement | null = null; // 원본 컬러(작업 해상도)
+let grayCanvas: HTMLCanvasElement | null = null; // 전처리 luma(procGray)
+let transformReady = false;
+let splitPos = 0.5; // 절취선 위치 (0~1)
+let dragging = false;
 
 function makeParamRow(s: Spec): HTMLLabelElement {
   const wrap = document.createElement('label');
@@ -174,7 +187,7 @@ function config(): PipelineConfig {
   };
 }
 
-async function loadImage(file: File): Promise<GrayImage> {
+async function loadImage(file: File): Promise<{ gray: GrayImage; color: HTMLCanvasElement }> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, DOWNSAMPLE_MAX / Math.max(bitmap.width, bitmap.height));
   const w = Math.max(1, Math.round(bitmap.width * scale));
@@ -186,23 +199,101 @@ async function loadImage(file: File): Promise<GrayImage> {
   if (!tctx) throw new Error('2D 컨텍스트를 만들 수 없습니다.');
   tctx.drawImage(bitmap, 0, 0, w, h);
   bitmap.close();
-  return toGray(tctx.getImageData(0, 0, w, h));
+  // tmp = 원본 컬러(작업 해상도) — 비교 뷰 원본으로 재사용.
+  return { gray: toGray(tctx.getImageData(0, 0, w, h)), color: tmp };
+}
+
+/** procGray(Float [0,1]) → 그레이스케일 캔버스. 비교 뷰 '그레이 원본'. */
+function grayToCanvas(gray: GrayImage): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = gray.width;
+  c.height = gray.height;
+  const cx = c.getContext('2d');
+  if (!cx) return c;
+  const img = cx.createImageData(gray.width, gray.height);
+  const n = gray.width * gray.height;
+  for (let i = 0; i < n; i++) {
+    const v = Math.max(0, Math.min(255, Math.round(gray.data[i] * 255)));
+    const j = i * 4;
+    img.data[j] = v;
+    img.data[j + 1] = v;
+    img.data[j + 2] = v;
+    img.data[j + 3] = 255;
+  }
+  cx.putImageData(img, 0, 0);
+  return c;
+}
+
+function viewMode(): 'single' | 'compare' {
+  return viewModeSel.value === 'compare' ? 'compare' : 'single';
+}
+
+/** 오프스크린 변환 결과 + 원본을 절취선으로 합성해 표시 캔버스에 그린다(변환 재계산 없음). */
+function paint(): void {
+  if (!transformReady) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const W = transformCanvas.width;
+  const H = transformCanvas.height;
+  canvas.width = W;
+  canvas.height = H;
+  if (viewMode() === 'single') {
+    ctx.drawImage(transformCanvas, 0, 0);
+    return;
+  }
+  // 비교: 변환 전체 그린 뒤 원본 영역만 클립 합성 → 절취선 표시.
+  ctx.drawImage(transformCanvas, 0, 0);
+  const orig = cmpOriginalSel.value === 'gray' ? grayCanvas : colorCanvas;
+  const vertical = cmpSplitSel.value !== 'horizontal';
+  const x = splitPos * W;
+  const y = splitPos * H;
+  ctx.save();
+  ctx.beginPath();
+  if (vertical) ctx.rect(0, 0, x, H); // 좌 = 원본
+  else ctx.rect(0, 0, W, y); // 상 = 원본
+  ctx.clip();
+  if (orig) ctx.drawImage(orig, 0, 0, orig.width, orig.height, 0, 0, W, H);
+  ctx.restore();
+  ctx.strokeStyle = '#e0245e';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  if (vertical) {
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, H);
+  } else {
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+  }
+  ctx.stroke();
+}
+
+/** 포인터 위치 → 절취선 위치(0~1). 분할 방향에 따라 x/y 축. */
+function posToSplit(e: PointerEvent): number {
+  const rect = canvas.getBoundingClientRect();
+  const t =
+    cmpSplitSel.value !== 'horizontal'
+      ? (e.clientX - rect.left) / rect.width
+      : (e.clientY - rect.top) / rect.height;
+  return Math.max(0, Math.min(1, t));
 }
 
 function render(): void {
   if (!rawGray) return;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
   if (dirtyPreprocess || !procGray) {
     procGray = preprocessGray(rawGray, preprocessMode(), P.contrast, P.gamma);
     dirtyPreprocess = false;
+    grayCanvas = grayToCanvas(procGray); // 전처리 바뀔 때만 그레이 원본 재생성
   }
-  canvas.width = procGray.width;
-  canvas.height = procGray.height;
+  transformCanvas.width = procGray.width;
+  transformCanvas.height = procGray.height;
+  const tctx = transformCanvas.getContext('2d');
+  if (!tctx) return;
   const t0 = performance.now();
   const polys = buildPolylines(procGray, config());
-  renderPolylines(ctx, polys);
+  renderPolylines(tctx, polys);
   const ms = Math.round(performance.now() - t0);
+  transformReady = true;
+  paint();
   const pts = polys.reduce((n, p) => n + p.length, 0);
   const ctr = centerOverride ? ` · center(${centerOverride.x | 0},${centerOverride.y | 0})` : '';
   statusEl.textContent = `${modeSel.value}/${warpSel.value}/${preSel.value} · ${procGray.width}×${procGray.height} · 폴리라인 ${polys.length.toLocaleString()}·점 ${pts.toLocaleString()} · ${ms}ms${ctr}`;
@@ -233,8 +324,16 @@ preSel.addEventListener('change', () => {
   scheduleRender();
 });
 
+// 비교 뷰(#21): 뷰/원본/분할 변경은 합성만 재수행(변환 재계산 불요). 절취선 방식은 상호작용만 변경.
+viewModeSel.addEventListener('change', () => {
+  compareOpts.hidden = viewMode() !== 'compare';
+  paint();
+});
+for (const sel of [cmpOriginalSel, cmpSplitSel]) sel.addEventListener('change', paint);
+
+// 단일 뷰: 캔버스 클릭 = 나선 중심 지정.
 canvas.addEventListener('click', (e) => {
-  if (!rawGray) return;
+  if (!rawGray || viewMode() !== 'single') return;
   const rect = canvas.getBoundingClientRect();
   centerOverride = {
     x: ((e.clientX - rect.left) / rect.width) * canvas.width,
@@ -243,12 +342,33 @@ canvas.addEventListener('click', (e) => {
   render();
 });
 
+// 비교 뷰: 절취선 드래그 / 커서 추종.
+canvas.addEventListener('pointerdown', (e) => {
+  if (viewMode() !== 'compare' || cmpHandleSel.value !== 'drag') return;
+  dragging = true;
+  splitPos = posToSplit(e);
+  paint();
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (viewMode() !== 'compare') return;
+  if (cmpHandleSel.value === 'follow' || dragging) {
+    splitPos = posToSplit(e);
+    paint();
+  }
+});
+canvas.addEventListener('pointerup', () => {
+  dragging = false;
+});
+
 fileInput.addEventListener('change', async () => {
   const file = fileInput.files?.[0];
   if (!file) return;
   statusEl.textContent = '변환 중…';
   try {
-    rawGray = await loadImage(file);
+    const loaded = await loadImage(file);
+    rawGray = loaded.gray;
+    colorCanvas = loaded.color;
     dirtyPreprocess = true;
     centerOverride = null;
     render();
