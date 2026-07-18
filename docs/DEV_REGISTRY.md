@@ -14,7 +14,7 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 | 코어 Slice 1~8 + #14·#26·#27 완료. UI 이슈 #18·#21·#22·#9(SVG·Worker·downsample) 완료. 남은: #23(원본해상도, #9 위에)·#19(주파수)·#20(IQA)·#10(캘리브) |
+| 3 | v2 알고리즘 구현 | 진행 중 | 코어 Slice 1~8 + #14·#26·#27 완료. UI 이슈 #18·#21·#22·#9·#23(원본해상도) 완료. 남은: #19(주파수)·#20(IQA)·#10(캘리브) |
 | 7 | phasefield 단일연속선(#14) | 부분 완료 | 세그먼트→정렬 폴리라인 chain+bridge: ~25k조각→~320 폴리라인(78× 연속성↑), seam guard+bridge, 커버리지 유지. **완전 단일곡선은 아님**(워프 등위선 위상). 진짜 단일 나선은 #7 integrate |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
@@ -23,6 +23,13 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-18 — #23 (원본 해상도 변환·다운로드)
+
+- **triage 결정(사용자)**: **(a)+(b) 둘 다 스위치 제공**. (b) 기본.
+- **#23 구현**: `원본해상도` 방식 셀렉트(scale/reprocess) + `원본 해상도 내보내기` 버튼. **(b) 좌표 스케일업**: 작업 해상도(≤1024)서 워커 분석 후 폴리라인 좌표·두께를 ×(origW/workingW)로 확대. **(a) 재처리**: `decodeFullGray`로 원본 풀 해상도 재디코드 → 전처리 → 워커 buildPolylines(#9 재사용, center scale 보정). 출력은 output_target 따름(svg 벡터 / png `toDataURL`, `mellanize-original.*`). 진행 상태 텍스트 + 버튼 disable. `loadImage`가 origW/origH 반환, 원본 File 보관.
+- **검증(구조)**: build(20 modules). 1600×1200 입력→작업 1024×768(다운샘플). (b) SVG/PNG·(a) SVG 모두 원본 1600×1200 출력(viewBox·`<path>` 확인), 상태에 방식 표기, (a) 풀해상도 파이프라인 완료. 콘솔 에러 0. 시각/성능은 사용자.
+- **한계(정직)**: (a)는 대형 이미지서 무거움(워커로 논블로킹하나 수초). (b)는 분석이 다운샘플 기반이라 미세 디테일은 선 위치에 미반영(선은 crisp). PNG 원본해상도는 큰 캔버스 `toDataURL`(메모리).
 
 ### 2026-07-18 — Slice #9 (output_target=svg + Web Worker + downsample)
 
