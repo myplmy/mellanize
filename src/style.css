@@ -9,6 +9,10 @@ h1 { margin: 0 0 .25rem; }
 .controls label { display: inline-flex; align-items: center; gap: .4rem; }
 button { padding: .35rem .9rem; cursor: pointer; }
 
+#viewbar { margin-top: -.25rem; }
+#compareopts { display: inline-flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+#compareopts[hidden] { display: none; }
+
 .params { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .35rem .9rem; margin-bottom: .5rem; }
 .param { display: grid; grid-template-columns: 5.5rem 1fr 4.2rem; align-items: center; gap: .4rem; font-size: .85rem; cursor: help; }
 .param input[type="range"] { width: 100%; cursor: pointer; }
