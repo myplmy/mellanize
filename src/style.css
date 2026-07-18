@@ -13,6 +13,18 @@ button { padding: .35rem .9rem; cursor: pointer; }
 #compareopts { display: inline-flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
 #compareopts[hidden] { display: none; }
 
+#quadopts { display: inline-flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+#quadopts[hidden] { display: none; }
+#quadResRow { display: inline-flex; gap: .4rem; align-items: center; font-size: .85rem; }
+#quadResRow input[type="range"] { width: 8rem; }
+#quadResRow input[type="number"] { width: 4.2rem; }
+
+#canvas[hidden] { display: none; }
+#quad { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .5rem; }
+#quad[hidden] { display: none; }
+#quad canvas.panel { width: 100%; height: auto; margin: 0; border: 2px solid rgba(128,128,128,.4); background: #fff; cursor: pointer; }
+#quad canvas.panel.active { border-color: #e0245e; }
+
 .params { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .35rem .9rem; margin-bottom: .5rem; }
 .param { display: grid; grid-template-columns: 5.5rem 1fr 4.2rem; align-items: center; gap: .4rem; font-size: .85rem; cursor: help; }
 .param input[type="range"] { width: 100%; cursor: pointer; }
