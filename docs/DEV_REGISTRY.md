@@ -14,7 +14,7 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 | 코어 Slice 1~8 + #14·#26·#27 완료. UI 이슈 #18·#21·#22·#9·#23·#20(IQA) 완료. 남은: #19(주파수, needs-triage)·#10(캘리브) |
+| 3 | v2 알고리즘 구현 | 진행 중 | 코어 Slice 1~8 + #14·#26·#27 완료. UI/처리/분석 이슈 #18·#21·#22·#9·#23·#20·#19(주파수) 완료. 남은: #10(HITL 캘리브, ready-for-human=사용자 몫)·#37(FFT 필터 옵션, needs-triage) |
 | 7 | phasefield 단일연속선(#14) | 부분 완료 | 세그먼트→정렬 폴리라인 chain+bridge: ~25k조각→~320 폴리라인(78× 연속성↑), seam guard+bridge, 커버리지 유지. **완전 단일곡선은 아님**(워프 등위선 위상). 진짜 단일 나선은 #7 integrate |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
@@ -23,6 +23,13 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-18 — #19 (주파수 필터: 하이/로우/밴드패스)
+
+- **triage 결정(사용자)**: 적용 지점 **(a) 입력변형 + (b) 분석용 둘 다 분리 구현**. 방식 **공간 컨볼루션(Gaussian DoG) 채택**, **FFT는 신규 이슈 #37로 분리**.
+- **#19 구현**: `pipeline/freqFilter.ts` `applyFreqFilter` — low=blur(σ)·high=0.5+(I−blur)·band=0.5+(blur σ_lo−blur σ_hi), [0,1] 클램프, 기존 gaussianBlur 재사용. **(a) 입력필터**: preprocess 뒤 procGray 에 적용(변환에 영향, 패널별 스냅샷 `inFilter` 포함, dirtyPreprocess 무효화). **(b) 분석필터**: 단일 뷰 paint 시 변환 결과 그레이에 적용해 표시(변환·다운로드엔 미영향). UI: 입력필터·분석필터 셀렉트(none/low/high/band) + 고급 `주파수 필터` 그룹의 in/out σ·σ_hi 슬라이더.
+- **검증(구조)**: build(22 modules). (a) none 106→high 109→low 105 폴리라인 변화(입력이 변환에 영향)·reset 106 복귀·band 108. (b) outFilter=high 시 표시 ink 21910→37496 변화하나 폴리라인 106 불변(변환 미영향, 표시만). 필터 그룹 both-none 시 흐림·활성 시 표시. 콘솔 에러 0. 시각/튜닝은 사용자.
+- **한계(정직)**: Gaussian DoG는 부드러운 응답(이상적 주파수 창 아님) → 정밀 대역은 #37(FFT). σ 클수록 저주파 컷.
 
 ### 2026-07-18 — #20 (IQA: MSE/PSNR/SSIM)
 
