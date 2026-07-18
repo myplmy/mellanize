@@ -14,7 +14,7 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 | 코어 Slice 1~8 + #14·#26·#27 완료. UI 이슈 #18(그룹화·툴팁)·#21(before-after)·#22(4분할) 완료. 남은: #9(SVG·성능,+#23)·#19(주파수)·#20(IQA)·#10(캘리브) |
+| 3 | v2 알고리즘 구현 | 진행 중 | 코어 Slice 1~8 + #14·#26·#27 완료. UI 이슈 #18·#21·#22·#9(SVG·Worker·downsample) 완료. 남은: #23(원본해상도, #9 위에)·#19(주파수)·#20(IQA)·#10(캘리브) |
 | 7 | phasefield 단일연속선(#14) | 부분 완료 | 세그먼트→정렬 폴리라인 chain+bridge: ~25k조각→~320 폴리라인(78× 연속성↑), seam guard+bridge, 커버리지 유지. **완전 단일곡선은 아님**(워프 등위선 위상). 진짜 단일 나선은 #7 integrate |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
@@ -23,6 +23,12 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-18 — Slice #9 (output_target=svg + Web Worker + downsample)
+
+- **#9 구현**: (1) **SVG 출력** `pipeline/svg.ts` `svgFromPolylines` — stroke-width가 경로 따라 못 변하므로 각 폴리라인을 **오프셋 아웃라인 폴리곤**(점별 ±t/2 좌/우 오프셋 후 닫음)으로 채워 단일 `<path fill>` 벡터. (2) **output_target 스위치**(canvas/svg) + **다운로드 버튼**(svg=벡터 blob, canvas=PNG `toDataURL` 동기). (3) **Web Worker** `worker.ts`가 `buildPolylines` 오프로드 → `computePolylines` Promise 래퍼, `render`/`renderPanel` async화, **최신-우선 토큰**(single 1개 + 패널 4개)으로 stale 폐기. 전처리(procGray)는 메인 유지(비교 그레이 원본용). (4) downsample_max 1024 기존 유지 + SVG 벡터 출력.
+- **검증(구조)**: build(20 modules, 별도 worker 청크 11kB 생성). single/compare/quad 전부 워커 async 렌더로 ink 생성(콘솔 에러 0), buildPolylines가 메인에 없음에도 렌더됨 = 워커 실행 확증(네트워크 worker.ts 로드 확인). SVG 다운로드 = `image/svg+xml`·`<path>` 포함·mellanize.svg, PNG = `data:image/png;base64…`·mellanize.png. 최신-우선: pitch 4→20→8 연타 후 8 결과로 수렴. 시각/성능 체감은 사용자.
+- **한계(정직)**: 워커는 buildPolylines만(전처리는 메인, CLAHE는 상대적으로 가벼움). SVG는 폴리라인마다 오프셋 폴리곤이라 integrate(2.8만점)는 큰 파일. 브라우저 자동화 환경에서 `canvas.toBlob` 미동작 → PNG는 `toDataURL`로 구현(견고). **원본 해상도 래스터 출력은 #23**(SVG는 이미 해상도 독립).
 
 ### 2026-07-18 — Slice #22 (4분할 비교 뷰)
 
