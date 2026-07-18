@@ -74,6 +74,7 @@
           <select id="viewmode">
             <option value="single" selected>단일</option>
             <option value="compare">비교 (절취선)</option>
+            <option value="quad">4분할 비교</option>
           </select>
         </label>
         <span id="compareopts" hidden>
@@ -96,6 +97,13 @@
             </select>
           </label>
         </span>
+        <span id="quadopts" hidden>
+          <label class="param" id="quadResRow">패널 해상도
+            <input type="range" id="quadResRange" min="128" max="1024" step="32" value="512" />
+            <input type="number" id="quadResNum" min="128" max="1024" step="32" value="512" />
+          </label>
+          <span class="hint">패널 클릭 = 선택 · 컨트롤은 활성 패널에 적용</span>
+        </span>
       </div>
 
       <div id="basic" class="params"></div>
@@ -108,6 +116,12 @@
       <span id="status" class="status">이미지를 선택하세요.</span>
 
       <canvas id="canvas"></canvas>
+      <div id="quad" hidden>
+        <canvas class="panel" data-panel="0"></canvas>
+        <canvas class="panel" data-panel="1"></canvas>
+        <canvas class="panel" data-panel="2"></canvas>
+        <canvas class="panel" data-panel="3"></canvas>
+      </div>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -37,6 +37,11 @@ const compareOpts = $<HTMLSpanElement>('compareopts');
 const cmpOriginalSel = $<HTMLSelectElement>('cmpOriginal');
 const cmpSplitSel = $<HTMLSelectElement>('cmpSplit');
 const cmpHandleSel = $<HTMLSelectElement>('cmpHandle');
+const quadOpts = $<HTMLSpanElement>('quadopts');
+const quadBox = $<HTMLDivElement>('quad');
+const quadResRange = $<HTMLInputElement>('quadResRange');
+const quadResNum = $<HTMLInputElement>('quadResNum');
+const panelCanvases = [...quadBox.querySelectorAll('canvas.panel')] as HTMLCanvasElement[];
 
 const P: Record<string, number> = {
   pitch: 8, tMin: 0.4, tMax: 6, lambda: 4,
@@ -95,6 +100,18 @@ let transformReady = false;
 let splitPos = 0.5; // 절취선 위치 (0~1)
 let dragging = false;
 
+// 4분할 비교(#22): 패널별 컨트롤 상태 스냅샷 + 렌더 결과. 활성 패널만 편집·재렌더.
+interface Panel {
+  snap: CtrlState;
+  canvas: HTMLCanvasElement;
+}
+let panels: Panel[] = [];
+let activePanel = 0;
+let quadRes = 512; // 패널 축소 렌더 장변 px (슬라이더 노출)
+
+// 스냅샷 로드 시 슬라이더/수치 입력을 P 값으로 되돌리기 위한 참조.
+const paramInputs = new Map<string, { range: HTMLInputElement; num: HTMLInputElement }>();
+
 function makeParamRow(s: Spec): HTMLLabelElement {
   const wrap = document.createElement('label');
   wrap.className = 'param';
@@ -123,6 +140,7 @@ function makeParamRow(s: Spec): HTMLLabelElement {
   range.addEventListener('input', () => onEdit(range, num));
   num.addEventListener('input', () => onEdit(num, range));
   wrap.append(name, range, num);
+  paramInputs.set(s.key, { range, num });
   return wrap;
 }
 
@@ -161,30 +179,72 @@ function preprocessMode(): 'luma_clahe' | 'luma_only' | 'user_adjust' {
   return v === 'luma_only' || v === 'user_adjust' ? v : 'luma_clahe';
 }
 
-function deformMode(): PipelineConfig['deformationModel'] {
-  const v = modeSel.value;
-  return v === 'skeleton' || v === 'integrate' || v === 'warp' ? v : 'phasefield';
+/** 전체 컨트롤 상태 스냅샷 (8 셀렉트 + 파라미터 + 중심). #22 패널별 저장·복원 단위. */
+interface CtrlState {
+  mode: string;
+  warp: string;
+  preprocess: string;
+  alpha: string;
+  lineorient: string;
+  signhandling: string;
+  tone: string;
+  coverage: string;
+  params: Record<string, number>;
+  center: Pt | null;
+}
+
+function readLive(): CtrlState {
+  return {
+    mode: modeSel.value, warp: warpSel.value, preprocess: preSel.value, alpha: alphaSel.value,
+    lineorient: lineSel.value, signhandling: signSel.value, tone: toneSel.value, coverage: coverageSel.value,
+    params: { ...P },
+    center: centerOverride,
+  };
+}
+
+/** 스냅샷을 컨트롤(셀렉트·P·입력·중심)에 로드. change 이벤트 미발생 → 재렌더는 호출측 제어. */
+function applyState(s: CtrlState): void {
+  modeSel.value = s.mode; warpSel.value = s.warp; preSel.value = s.preprocess; alphaSel.value = s.alpha;
+  lineSel.value = s.lineorient; signSel.value = s.signhandling; toneSel.value = s.tone; coverageSel.value = s.coverage;
+  Object.assign(P, s.params);
+  centerOverride = s.center;
+  for (const [key, io] of paramInputs) {
+    io.range.value = String(P[key]);
+    io.num.value = String(P[key]);
+  }
+  dirtyPreprocess = true;
+  refreshGroups();
+}
+
+function cloneState(s: CtrlState): CtrlState {
+  return { ...s, params: { ...s.params }, center: s.center ? { ...s.center } : null };
+}
+
+function configFrom(s: CtrlState, center?: Pt): PipelineConfig {
+  const q = s.params;
+  return {
+    deformationModel:
+      s.mode === 'skeleton' || s.mode === 'integrate' || s.mode === 'warp' ? s.mode : 'phasefield',
+    alphaSource: s.alpha === 'meanH' ? 'meanH' : s.alpha === 'mixed' ? 'mixed' : 'grad',
+    warpMode: s.warp === 'tone_only' ? 'tone_only' : 'anisotropic',
+    pitch: q.pitch, tMin: q.tMin, tMax: q.tMax, step: 1.5, lambda: q.lambda,
+    sigma: q.sigma, rho: q.rho, c: q.c, diffIters: q.diffIters, diffKappa: q.diffKappa,
+    alongIters: q.alongIters, alongStrength: q.alongStrength, alongReach: q.alongReach,
+    preprocess: s.preprocess === 'luma_only' || s.preprocess === 'user_adjust' ? s.preprocess : 'luma_clahe',
+    contrast: q.contrast, gamma: q.gamma, warpStrength: q.warpStrength,
+    lineOrientation: s.lineorient === 'across' ? 'across' : s.lineorient === 'switch' ? 'switch' : 'along',
+    signHandling: s.signhandling === 'spiralalign' ? 'spiralalign' : 'tensorblend',
+    integrateAlphaCap: q.integrateAlphaCap,
+    startAngle: q.startAngle,
+    toneChannels: s.tone === 'thickness_plus_spacing' ? 'thickness_plus_spacing' : 'thickness_only',
+    coverageExtent: s.coverage === 'fixed_turns' ? 'fixed_turns' : 'diagonal',
+    fixedTurns: q.fixedTurns,
+    center: center ?? s.center ?? undefined,
+  };
 }
 
 function config(): PipelineConfig {
-  return {
-    deformationModel: deformMode(),
-    alphaSource: alphaSel.value === 'meanH' ? 'meanH' : alphaSel.value === 'mixed' ? 'mixed' : 'grad',
-    warpMode: warpSel.value === 'tone_only' ? 'tone_only' : 'anisotropic',
-    pitch: P.pitch, tMin: P.tMin, tMax: P.tMax, step: 1.5, lambda: P.lambda,
-    sigma: P.sigma, rho: P.rho, c: P.c, diffIters: P.diffIters, diffKappa: P.diffKappa,
-    alongIters: P.alongIters, alongStrength: P.alongStrength, alongReach: P.alongReach,
-    preprocess: preprocessMode(), contrast: P.contrast, gamma: P.gamma,
-    warpStrength: P.warpStrength,
-    lineOrientation: lineSel.value === 'across' ? 'across' : lineSel.value === 'switch' ? 'switch' : 'along',
-    signHandling: signSel.value === 'spiralalign' ? 'spiralalign' : 'tensorblend',
-    integrateAlphaCap: P.integrateAlphaCap,
-    startAngle: P.startAngle,
-    toneChannels: toneSel.value === 'thickness_plus_spacing' ? 'thickness_plus_spacing' : 'thickness_only',
-    coverageExtent: coverageSel.value === 'fixed_turns' ? 'fixed_turns' : 'diagonal',
-    fixedTurns: P.fixedTurns,
-    center: centerOverride ?? undefined,
-  };
+  return configFrom(readLive());
 }
 
 async function loadImage(file: File): Promise<{ gray: GrayImage; color: HTMLCanvasElement }> {
@@ -224,8 +284,70 @@ function grayToCanvas(gray: GrayImage): HTMLCanvasElement {
   return c;
 }
 
-function viewMode(): 'single' | 'compare' {
-  return viewModeSel.value === 'compare' ? 'compare' : 'single';
+function viewMode(): 'single' | 'compare' | 'quad' {
+  const v = viewModeSel.value;
+  return v === 'compare' || v === 'quad' ? v : 'single';
+}
+
+/** GrayImage 를 장변 maxDim 으로 최근접 다운샘플(패널 축소 렌더용). scale 은 원본→축소 배율. */
+function downsampleGray(g: GrayImage, maxDim: number): { gray: GrayImage; scale: number } {
+  const scale = Math.min(1, maxDim / Math.max(g.width, g.height));
+  if (scale >= 1) return { gray: g, scale: 1 };
+  const w = Math.max(1, Math.round(g.width * scale));
+  const h = Math.max(1, Math.round(g.height * scale));
+  const data = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const sy = Math.min(g.height - 1, Math.floor(y / scale));
+    for (let x = 0; x < w; x++) {
+      const sx = Math.min(g.width - 1, Math.floor(x / scale));
+      data[y * w + x] = g.data[sy * g.width + sx];
+    }
+  }
+  return { gray: { width: w, height: h, data }, scale };
+}
+
+/** 한 패널을 스냅샷 설정으로 축소 렌더(전처리도 스냅샷 기준). 활성 패널만 자주 호출됨. */
+function renderPanel(i: number): void {
+  if (!rawGray) return;
+  const panel = panels[i];
+  const { gray: small, scale } = downsampleGray(rawGray, quadRes);
+  const pm = panel.snap.preprocess === 'luma_only' || panel.snap.preprocess === 'user_adjust'
+    ? panel.snap.preprocess
+    : 'luma_clahe';
+  const pg = preprocessGray(small, pm, panel.snap.params.contrast, panel.snap.params.gamma);
+  const center = panel.snap.center
+    ? { x: panel.snap.center.x * scale, y: panel.snap.center.y * scale }
+    : undefined;
+  const polys = buildPolylines(pg, configFrom(panel.snap, center));
+  panel.canvas.width = pg.width;
+  panel.canvas.height = pg.height;
+  const ctx = panel.canvas.getContext('2d');
+  if (ctx) renderPolylines(ctx, polys);
+}
+
+function renderAllPanels(): void {
+  for (let i = 0; i < panels.length; i++) renderPanel(i);
+}
+
+function highlightActive(): void {
+  panelCanvases.forEach((cv, i) => cv.classList.toggle('active', i === activePanel));
+}
+
+/** 4분할 진입: 최초엔 현재 라이브 설정을 4패널에 복제, 이후엔 기존 스냅샷 유지. */
+function enterQuad(): void {
+  if (panels.length === 0) {
+    const base = readLive();
+    panels = panelCanvases.map((cv) => ({ snap: cloneState(base), canvas: cv }));
+    activePanel = 0;
+    applyState(panels[activePanel].snap);
+  }
+  renderAllPanels();
+  highlightActive();
+  quadStatus();
+}
+
+function quadStatus(): void {
+  statusEl.textContent = `4분할 · 활성 패널 ${activePanel + 1}/4 · 패널 해상도 ${quadRes}px · 컨트롤은 활성 패널에 적용`;
 }
 
 /** 오프스크린 변환 결과 + 원본을 절취선으로 합성해 표시 캔버스에 그린다(변환 재계산 없음). */
@@ -279,6 +401,15 @@ function posToSplit(e: PointerEvent): number {
 
 function render(): void {
   if (!rawGray) return;
+  // 4분할: 라이브 컨트롤을 활성 패널 스냅샷에 반영하고 그 패널만 재렌더(나머지 유지).
+  if (viewMode() === 'quad') {
+    if (panels.length) {
+      panels[activePanel].snap = readLive();
+      renderPanel(activePanel);
+      quadStatus();
+    }
+    return;
+  }
   if (dirtyPreprocess || !procGray) {
     procGray = preprocessGray(rawGray, preprocessMode(), P.contrast, P.gamma);
     dirtyPreprocess = false;
@@ -324,12 +455,42 @@ preSel.addEventListener('change', () => {
   scheduleRender();
 });
 
-// 비교 뷰(#21): 뷰/원본/분할 변경은 합성만 재수행(변환 재계산 불요). 절취선 방식은 상호작용만 변경.
+// 뷰 전환: compare/quad 옵션·컨테이너 토글. quad 진입 시 패널 초기화, 그 외엔 전체 렌더.
 viewModeSel.addEventListener('change', () => {
-  compareOpts.hidden = viewMode() !== 'compare';
-  paint();
+  const m = viewMode();
+  compareOpts.hidden = m !== 'compare';
+  quadOpts.hidden = m !== 'quad';
+  quadBox.hidden = m !== 'quad';
+  canvas.hidden = m === 'quad';
+  if (m === 'quad') enterQuad();
+  else render();
 });
+// 비교 뷰(#21): 원본/분할 변경은 합성만 재수행(변환 재계산 불요).
 for (const sel of [cmpOriginalSel, cmpSplitSel]) sel.addEventListener('change', paint);
+
+// 4분할(#22): 패널 클릭 = 선택 + 그 패널 스냅샷을 컨트롤에 로드(재렌더 없음).
+for (const cv of panelCanvases) {
+  cv.addEventListener('click', () => {
+    if (viewMode() !== 'quad' || panels.length === 0) return;
+    activePanel = Number(cv.dataset.panel) || 0;
+    applyState(panels[activePanel].snap);
+    highlightActive();
+    quadStatus();
+  });
+}
+// 패널 해상도 슬라이더/수치: 전 패널 재렌더.
+const onQuadRes = (src: HTMLInputElement, other: HTMLInputElement): void => {
+  const v = Number(src.value);
+  if (Number.isNaN(v)) return;
+  quadRes = v;
+  other.value = src.value;
+  if (viewMode() === 'quad') {
+    renderAllPanels();
+    quadStatus();
+  }
+};
+quadResRange.addEventListener('input', () => onQuadRes(quadResRange, quadResNum));
+quadResNum.addEventListener('input', () => onQuadRes(quadResNum, quadResRange));
 
 // 단일 뷰: 캔버스 클릭 = 나선 중심 지정.
 canvas.addEventListener('click', (e) => {
@@ -371,7 +532,8 @@ fileInput.addEventListener('change', async () => {
     colorCanvas = loaded.color;
     dirtyPreprocess = true;
     centerOverride = null;
-    render();
+    if (viewMode() === 'quad') enterQuad();
+    else render();
   } catch (err) {
     statusEl.textContent = `오류: ${err instanceof Error ? err.message : String(err)}`;
   }
