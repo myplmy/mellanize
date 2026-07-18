@@ -4,6 +4,7 @@ import {
   preprocessGray,
   renderPolylines,
   svgFromPolylines,
+  computeIqa,
   type GrayImage,
   type PipelineConfig,
   type Pt,
@@ -34,6 +35,7 @@ const downloadBtn = $<HTMLButtonElement>('download');
 const origMethodSel = $<HTMLSelectElement>('origMethod');
 const origExportBtn = $<HTMLButtonElement>('origExport');
 const statusEl = $<HTMLSpanElement>('status');
+const iqaEl = $<HTMLSpanElement>('iqa');
 const canvas = $<HTMLCanvasElement>('canvas');
 const basicBox = $<HTMLDivElement>('basic');
 const advBox = $<HTMLDivElement>('advanced');
@@ -344,6 +346,31 @@ function viewMode(): 'single' | 'compare' | 'quad' {
   return v === 'compare' || v === 'quad' ? v : 'single';
 }
 
+/** 캔버스 픽셀 → 그레이스케일 [0,1] (Rec.709). IQA 비교용. */
+function canvasGray(cv: HTMLCanvasElement): Float32Array {
+  const cx = cv.getContext('2d');
+  const { width: w, height: h } = cv;
+  const out = new Float32Array(w * h);
+  if (!cx) return out;
+  const d = cx.getImageData(0, 0, w, h).data;
+  for (let i = 0; i < w * h; i++) {
+    const j = i * 4;
+    out[i] = (0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2]) / 255;
+  }
+  return out;
+}
+
+/** #20: 그레이 원본(procGray) vs 변환 결과(그레이스케일) IQA 표시. quad 에선 생략. */
+function updateIqa(): void {
+  if (!procGray || viewMode() === 'quad' || !transformReady) {
+    iqaEl.textContent = '';
+    return;
+  }
+  const test = canvasGray(transformCanvas);
+  const { mse, psnr, ssim } = computeIqa(procGray.data, test, procGray.width, procGray.height);
+  iqaEl.textContent = `IQA(원본↔변환·그레이) · MSE ${mse.toFixed(4)} · PSNR ${psnr.toFixed(2)}dB · SSIM ${ssim.toFixed(4)}`;
+}
+
 /** GrayImage 를 장변 maxDim 으로 최근접 다운샘플(패널 축소 렌더용). scale 은 원본→축소 배율. */
 function downsampleGray(g: GrayImage, maxDim: number): { gray: GrayImage; scale: number } {
   const scale = Math.min(1, maxDim / Math.max(g.width, g.height));
@@ -406,6 +433,7 @@ function enterQuad(): void {
   renderAllPanels();
   highlightActive();
   quadStatus();
+  iqaEl.textContent = ''; // IQA 는 단일/비교 뷰 전용
 }
 
 function quadStatus(): void {
@@ -470,6 +498,7 @@ async function render(): Promise<void> {
       void renderPanel(activePanel);
       quadStatus();
     }
+    iqaEl.textContent = '';
     return;
   }
   if (dirtyPreprocess || !procGray) {
@@ -492,6 +521,7 @@ async function render(): Promise<void> {
   lastW = procGray.width;
   lastH = procGray.height;
   paint();
+  updateIqa();
   const pts = polys.reduce((n, p) => n + p.length, 0);
   const ctr = centerOverride ? ` · center(${centerOverride.x | 0},${centerOverride.y | 0})` : '';
   statusEl.textContent = `${modeSel.value}/${warpSel.value}/${preSel.value} · ${outputSel.value} · ${procGray.width}×${procGray.height} · 폴리라인 ${polys.length.toLocaleString()}·점 ${pts.toLocaleString()} · ${ms}ms${ctr}`;
