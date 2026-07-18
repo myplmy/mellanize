@@ -6,11 +6,13 @@ import {
   svgFromPolylines,
   computeIqa,
   applyFreqFilter,
+  applyFftFilter,
   type GrayImage,
   type PipelineConfig,
   type Pt,
   type Polyline,
   type FreqFilter,
+  type FftMask,
 } from './pipeline';
 
 const DOWNSAMPLE_MAX = 1024;
@@ -32,6 +34,8 @@ const toneSel = $<HTMLSelectElement>('tone');
 const coverageSel = $<HTMLSelectElement>('coverage');
 const inFilterSel = $<HTMLSelectElement>('inFilter');
 const outFilterSel = $<HTMLSelectElement>('outFilter');
+const filterMethodSel = $<HTMLSelectElement>('filterMethod');
+const fftMaskSel = $<HTMLSelectElement>('fftMask');
 const autoregen = $<HTMLInputElement>('autoregen');
 const renderBtn = $<HTMLButtonElement>('render');
 const outputSel = $<HTMLSelectElement>('output');
@@ -60,7 +64,7 @@ const P: Record<string, number> = {
   alongIters: 16, alongStrength: 2, alongReach: 4,
   contrast: 1, gamma: 1, warpStrength: 0.6, integrateAlphaCap: 0.8,
   startAngle: 0, fixedTurns: 30,
-  inSigma1: 2, inSigma2: 6, outSigma1: 2, outSigma2: 6,
+  inSigma1: 2, inSigma2: 6, outSigma1: 2, outSigma2: 6, fftOrder: 2,
 };
 
 /** 고급 패널 섹션 = 파라미터가 영향을 주는 모드/단계. #18 그룹화. */
@@ -89,6 +93,7 @@ const SPECS: Spec[] = [
   { key: 'inSigma2', label: 'in σhi', min: 0.5, max: 40, step: 0.5, advanced: true, preproc: true, group: 'filter', tip: '입력필터 밴드패스 상한 σ_hi(σ_lo<σ_hi) · 입력필터(a)' },
   { key: 'outSigma1', label: 'out σ/σlo', min: 0.5, max: 20, step: 0.5, advanced: true, group: 'filter', tip: '분석필터 cutoff σ(high/low) 또는 밴드 하한 σ_lo · 분석필터(b)' },
   { key: 'outSigma2', label: 'out σhi', min: 0.5, max: 40, step: 0.5, advanced: true, group: 'filter', tip: '분석필터 밴드패스 상한 σ_hi · 분석필터(b)' },
+  { key: 'fftOrder', label: 'FFT order', min: 1, max: 16, step: 1, advanced: true, preproc: true, group: 'filter', tip: 'FFT butterworth 마스크 차수. 클수록 ideal(하드컷)에 근접·링잉↑ · FFT 방식' },
 ];
 
 interface Group { id: GroupId; label: string; active: () => boolean; }
@@ -411,7 +416,7 @@ async function renderPanel(i: number): Promise<void> {
     ? panel.snap.preprocess
     : 'luma_clahe';
   const pg0 = preprocessGray(small, pm, panel.snap.params.contrast, panel.snap.params.gamma);
-  const pg = filteredGray(pg0, asFreq(panel.snap.inFilter), panel.snap.params.inSigma1, panel.snap.params.inSigma2);
+  const pg = filteredGray(pg0, asFreq(panel.snap.inFilter), panel.snap.params.inSigma1, panel.snap.params.inSigma2, panel.snap.params.fftOrder);
   const center = panel.snap.center
     ? { x: panel.snap.center.x * scale, y: panel.snap.center.y * scale }
     : undefined;
@@ -466,7 +471,7 @@ function paint(): void {
   if (viewMode() === 'single') {
     if (outFilterSel.value !== 'none') {
       // 분석필터(b): 변환 결과에 주파수 필터를 적용해 표시(변환·다운로드엔 미영향).
-      const f = applyFreqFilter(canvasGray(transformCanvas), W, H, asFreq(outFilterSel.value), P.outSigma1, P.outSigma2);
+      const f = applyFilterArr(canvasGray(transformCanvas), W, H, asFreq(outFilterSel.value), P.outSigma1, P.outSigma2, P.fftOrder);
       drawGrayToCtx(ctx, f, W, H);
     } else {
       ctx.drawImage(transformCanvas, 0, 0);
@@ -512,11 +517,31 @@ function posToSplit(e: PointerEvent): number {
 function asFreq(v: string): FreqFilter {
   return v === 'lowpass' || v === 'highpass' || v === 'bandpass' ? v : 'none';
 }
+function asMask(v: string): FftMask {
+  return v === 'ideal' || v === 'gaussian' ? v : 'butterworth';
+}
+
+/** 주파수 필터 디스패치: 방식(DoG/FFT) + FFT 마스크는 전역 셀렉트, cutoff σ·order 는 호출자 전달. */
+function applyFilterArr(
+  arr: Float32Array,
+  w: number,
+  h: number,
+  type: FreqFilter,
+  s1: number,
+  s2: number,
+  order: number,
+): Float32Array {
+  if (type === 'none') return arr;
+  if (filterMethodSel.value === 'fft') {
+    return applyFftFilter(arr, w, h, type, s1, s2, asMask(fftMaskSel.value), order);
+  }
+  return applyFreqFilter(arr, w, h, type, s1, s2);
+}
 
 /** 입력 주파수 필터(a) 적용된 그레이. none 이면 원본 그대로. */
-function filteredGray(g: GrayImage, type: FreqFilter, s1: number, s2: number): GrayImage {
+function filteredGray(g: GrayImage, type: FreqFilter, s1: number, s2: number, order: number): GrayImage {
   if (type === 'none') return g;
-  return { width: g.width, height: g.height, data: applyFreqFilter(g.data, g.width, g.height, type, s1, s2) };
+  return { width: g.width, height: g.height, data: applyFilterArr(g.data, g.width, g.height, type, s1, s2, order) };
 }
 
 /** Float [0,1] 그레이 → 표시 캔버스(분석필터 b 표시용). */
@@ -547,7 +572,7 @@ async function render(): Promise<void> {
   }
   if (dirtyPreprocess || !procGray) {
     const pp = preprocessGray(rawGray, preprocessMode(), P.contrast, P.gamma);
-    procGray = filteredGray(pp, asFreq(inFilterSel.value), P.inSigma1, P.inSigma2); // 입력필터(a)
+    procGray = filteredGray(pp, asFreq(inFilterSel.value), P.inSigma1, P.inSigma2, P.fftOrder); // 입력필터(a)
     dirtyPreprocess = false;
     grayCanvas = grayToCanvas(procGray); // 전처리/필터 바뀔 때만 그레이 원본 재생성
   }
@@ -684,6 +709,14 @@ outFilterSel.addEventListener('change', () => {
   refreshGroups();
   if (viewMode() === 'single') paint();
 });
+// 필터 방식(DoG/FFT)·FFT 마스크는 전역 → 입력필터 재계산 + (quad 전 패널) 재렌더.
+for (const sel of [filterMethodSel, fftMaskSel])
+  sel.addEventListener('change', () => {
+    dirtyPreprocess = true;
+    refreshGroups();
+    if (viewMode() === 'quad') renderAllPanels();
+    else scheduleRender();
+  });
 
 // 뷰 전환: compare/quad 옵션·컨테이너 토글. quad 진입 시 패널 초기화, 그 외엔 전체 렌더.
 viewModeSel.addEventListener('change', () => {

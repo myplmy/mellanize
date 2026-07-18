@@ -89,6 +89,19 @@
             <option value="bandpass">밴드패스</option>
           </select>
         </label>
+        <label>필터방식
+          <select id="filterMethod" title="DoG: 공간 가우시안 차분(빠름) / FFT: 2D 주파수 마스크(정밀, ~100-200ms)">
+            <option value="dog" selected>Gaussian DoG</option>
+            <option value="fft">FFT</option>
+          </select>
+        </label>
+        <label>FFT마스크
+          <select id="fftMask" title="FFT 방식 마스크: butterworth(order로 smooth↔sharp) / ideal(하드컷·링잉) / gaussian(부드러움)">
+            <option value="butterworth" selected>butterworth</option>
+            <option value="ideal">ideal</option>
+            <option value="gaussian">gaussian</option>
+          </select>
+        </label>
         <button id="download" type="button" title="현재 출력 형식으로 저장 (canvas=PNG / SVG=벡터)">다운로드</button>
         <label>원본해상도
           <select id="origMethod" title="(b) 좌표 스케일업: 빠름·분석은 다운샘플 / (a) 재처리: 원본서 재분석·무거움">

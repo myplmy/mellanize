@@ -14,7 +14,7 @@
 |---|------|------|------|
 | 1 | 파이프라인 설계 검증 (grill) | 완료 (차수 1~3) | 설계 트리 수렴. v2 문서가 정본. 잔여는 구현 시점 세부(파라미터 기본값·CLAHE 계수 등, 비차단) |
 | 2 | v2 구현 계획 수립 (to-issues) | 완료 | GitHub 이슈 #1~#10 (tracer-bullet 슬라이스, needs-triage) |
-| 3 | v2 알고리즘 구현 | 진행 중 | 코어 Slice 1~8 + #14·#26·#27 완료. UI/처리/분석 이슈 #18·#21·#22·#9·#23·#20·#19(주파수) 완료. 남은: #10(HITL 캘리브, ready-for-human=사용자 몫)·#37(FFT 필터 옵션, needs-triage) |
+| 3 | v2 알고리즘 구현 | 에이전트 구현 완료 | 코어 Slice 1~8 + #14·#26·#27 + UI/처리/분석 이슈 #18·#21·#22·#9·#23·#20·#19·#37(FFT) 전부 완료·배포. **남은 오픈 이슈는 #10(HITL 미학 캘리브, ready-for-human=사용자 판단)뿐** |
 | 7 | phasefield 단일연속선(#14) | 부분 완료 | 세그먼트→정렬 폴리라인 chain+bridge: ~25k조각→~320 폴리라인(78× 연속성↑), seam guard+bridge, 커버리지 유지. **완전 단일곡선은 아님**(워프 등위선 위상). 진짜 단일 나선은 #7 integrate |
 | 4 | GitHub Pages 호스팅 | 동작 (라이브) | https://myplmy.github.io/mellanize/ · Actions 배포 파이프라인 그린 |
 | 5 | 테스트 인프라 도입 시 `check-and-verify` 규약 정합 | 대기 | 아래 "스킬 인프라 상태" 참조 |
@@ -23,6 +23,13 @@
 ---
 
 ## 작업 로그
+
+### 2026-07-18 — #37 (주파수 필터 FFT 기반 옵션)
+
+- **triage 결정(사용자)**: 마스크 **3종 선택(butterworth/ideal/gaussian)**, 실행 **main 스레드(디바운스)**.
+- **#37 구현**: `pipeline/fft.ts` — 2D radix-2 FFT(자체 구현, 외부 의존 0) + pow2 edge-clamp 패딩 + 주파수 마스크. `applyFftFilter(img,w,h,type,σ1,σ2,mask,order)`. σ→정규화 컷오프 반경 매핑(기존 σ 슬라이더 재사용). 마스크: butterworth(order로 smooth↔ideal)/ideal(하드컷)/gaussian. `filterMethod`(dog/fft)·`fftMask` 전역 셀렉트 + `FFT order` 슬라이더. `applyFilterArr` 디스패치로 입력(a)·분석(b) 필터 공통 적용. main 실행(디바운스).
+- **검증(수치·구조)**: build(23 modules). **FFT 정확성 수치검증(dev 모듈 동적 import)**: all-pass 왕복 오차 0(정변환/역변환·스케일 정확), lowpass DC/평균 보존 오차 0, highpass 평균 정확히 0.5(DC 제거+재배치). 통합: FFT 입력필터가 변환 변경(102→117), 3마스크 상호 상이(butter 117/ideal 120/gauss 109), FFT≠DoG(117 vs 106), 분석필터는 표시만(변환 불변). 콘솔 에러 0. 시각/튜닝은 사용자.
+- **한계(정직)**: 2D FFT ~1024²는 무거움(main, 필터 변경 시 ~100-200ms, 디바운스로 완화). filterMethod/fftMask는 전역(패널별 아님), fftOrder·σ는 패널 스냅샷 포함. pow2 패딩 경계효과.
 
 ### 2026-07-18 — #19 (주파수 필터: 하이/로우/밴드패스)
 
